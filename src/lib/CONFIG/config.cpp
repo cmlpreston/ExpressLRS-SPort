@@ -1,4 +1,7 @@
 #include "config.h"
+#if defined(ER4_SPORT_TRIAL)
+#include "Er4BenchDefaults.h"
+#endif
 #include "config_legacy.h"
 #include "common.h"
 #include "device.h"
@@ -1314,6 +1317,11 @@ RxConfig::SetDefaults(bool commit)
         SetPwmChannel(ch, failsafe, ch, false, mode, false);
     }
 
+#if defined(ER4_SPORT_TRIAL)
+    if (GPIO_PIN_PWM_OUTPUTS_COUNT == 4 && GPIO_PIN_PWM_OUTPUTS[0] == 0 &&
+        GPIO_PIN_PWM_OUTPUTS[1] == 1 && GPIO_PIN_PWM_OUTPUTS[2] == 3 && GPIO_PIN_PWM_OUTPUTS[3] == 9)
+        applyEr4BenchDefaults(*this);
+#endif
     m_config.teamraceChannel = AUX7; // CH11
 
     if (commit)

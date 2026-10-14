@@ -1,3 +1,14 @@
+# ExpressLRS S.Port receiver experiment
+
+This fork adds experimental receiver-integrated FrSky S.Port telemetry to
+ExpressLRS **4.1.0**, on branch **codex/sport-telemetry**.
+
+Start with [the S.Port project guide](sport/README.md) and
+[ER4 first-trial instructions](sport/er4-sport/first-trial.md).
+No receiver has been flashed or hardware-validated by this work.
+
+---
+
 ![Banner](https://github.com/ExpressLRS/ExpressLRS-Hardware/blob/master/img/banner.png?raw=true)
 
 <center>

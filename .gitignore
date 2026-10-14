@@ -8,3 +8,7 @@ src/.vscode
 src/data/*.ini
 src/data/*.json
 src/hardware
+
+# Receiver experiment outputs
+sport/**/build/
+sport/artifacts/

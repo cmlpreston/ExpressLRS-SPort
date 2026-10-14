@@ -22,6 +22,8 @@
 #include "rx-serial/SerialSUMD.h"
 #include "rx-serial/SerialAirPort.h"
 #include "rx-serial/SerialHoTT_TLM.h"
+#include "rx-serial/SerialSportER4.h"
+#include "rx-serial/SerialSport.h"
 #include "rx-serial/SerialMavlink.h"
 #include "rx-serial/SerialTramp.h"
 #include "rx-serial/SerialSmartAudio.h"
@@ -1263,7 +1265,33 @@ static void setupSerial()
 	bool sumdSerialOutput = false;
     bool mavlinkSerialOutput = false;
     bool hottTlmSerial = false;
+#if defined(ER4_SPORT_TRIAL) && defined(PLATFORM_ESP8266)
+    if (config.GetSerialProtocol() == PROTOCOL_SPORT) {
+        BackpackOrLogStrm = new NullStream(); // UART0 belongs exclusively to sensors.
+        const bool er4Pins = GPIO_PIN_PWM_OUTPUTS_COUNT == 4 &&
+            GPIO_PIN_PWM_OUTPUTS[0] == 0 && GPIO_PIN_PWM_OUTPUTS[1] == 1 &&
+            GPIO_PIN_PWM_OUTPUTS[2] == 3 && GPIO_PIN_PWM_OUTPUTS[3] == 9;
+        if (!er4Pins || config.GetPwmChannel(1)->val.mode != somSerial ||
+            config.GetPwmChannel(2)->val.mode != somSerial || firmwareOptions.is_airport) {
+            pinMode(1, INPUT);
+            serialIO = new SerialNOOP(); // Refuse pin ownership conflicts.
+            return;
+        }
+        serialBaud = 57600;
+        Serial.begin(serialBaud, SERIAL_8N1, SERIAL_FULL, -1, true);
+        Serial.setDebugOutput(false);
+        serialIO = new SerialSportER4(SERIAL_PROTOCOL_TX, SERIAL_PROTOCOL_RX);
+        return;
+    }
+#endif
 
+#if !defined(ER4_SPORT_TRIAL)
+    if (config.GetSerialProtocol() == PROTOCOL_SPORT) {
+        BackpackOrLogStrm = new NullStream();
+        serialIO = new SerialNOOP(); // Primary S.Port currently supports ER4 only.
+        return;
+    }
+#endif
     if (OPT_CRSF_RCVR_NO_SERIAL)
     {
         // For PWM receivers with no serial pins defined, only turn on the Serial port if logging is on
@@ -1461,6 +1489,12 @@ static void setupSerial1()
         case PROTOCOL_SERIAL1_SUMD:
             Serial1.begin(115200, SERIAL_8N1, UNDEF_PIN, serial1TXpin, false);
             serial1IO = new SerialSUMD(SERIAL1_PROTOCOL_TX, SERIAL1_PROTOCOL_RX);
+            break;
+        case PROTOCOL_SERIAL1_SPORT:
+            if (serial1TXpin != UNDEF_PIN) {
+                Serial1.begin(57600, SERIAL_8N1, serial1TXpin, serial1TXpin, false);
+                serial1IO = new SerialSport(SERIAL1_PROTOCOL_TX, SERIAL1_PROTOCOL_RX, serial1TXpin);
+            }
             break;
         case PROTOCOL_SERIAL1_HOTT_TLM:
             Serial1.begin(19200, SERIAL_8N2, serial1RXpin, serial1TXpin, false);

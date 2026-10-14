@@ -4,6 +4,10 @@
 
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
+#if defined(ER4_SPORT_TRIAL) && defined(TARGET_RX)
+#include "SportCapture.h"
+extern onboard::SportCapture er4SportCapture;
+#endif
 #include <LittleFS.h>
 
 #if defined(PLATFORM_ESP32)
@@ -1197,6 +1201,31 @@ static void startServices()
   server.on("/forget", WebUpdateForget);
   server.on("/connect", WebUpdateConnect);
   server.on("/config", HTTP_GET, GetConfiguration);
+#if defined(ER4_SPORT_TRIAL) && defined(TARGET_RX)
+  server.on("/sport/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    JsonDocument doc;
+    doc["firmware"] = "ER4 S.Port trial / ELRS 4.1.0";
+    doc["capture_only_by_default"] = true;
+    doc["driver_active"] = er4SportCapture.active;
+    doc["polls"] = er4SportCapture.polls;
+    doc["samples"] = er4SportCapture.samples;
+    doc["checksum_errors"] = er4SportCapture.checksumErrors;
+    doc["dropped_keys"] = er4SportCapture.droppedKeys;
+    JsonArray entries = doc["readings"].to<JsonArray>();
+    for (unsigned i=0; i<er4SportCapture.used; ++i) {
+      const auto &entry = er4SportCapture.entries[i];
+      JsonObject row = entries.add<JsonObject>();
+      row["physical_id"] = entry.sample.physicalId;
+      row["application_id"] = entry.sample.appId;
+      row["raw_value"] = entry.sample.value;
+      row["updated_ms"] = entry.updatedMs;
+      row["count"] = entry.count;
+    }
+    String body;
+    serializeJson(doc, body);
+    request->send(200, "application/json", body);
+  });
+#endif
   server.on("/access", WebUpdateAccessPoint);
   server.on("/firmware.bin", WebUpdateGetFirmware);
 

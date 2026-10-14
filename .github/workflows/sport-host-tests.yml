@@ -1,0 +1,13 @@
+name: S.Port receiver host tests
+on:
+  push:
+    branches: [codex/sport-telemetry]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sanitized receiver and compatibility suites
+        run: make -C sport test

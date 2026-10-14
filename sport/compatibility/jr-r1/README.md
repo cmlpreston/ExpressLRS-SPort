@@ -1,0 +1,1 @@
+Test-only snapshot from cmlpreston/jr-r1-native-crsf, HEAD 18260e38a08c17558f7d6f6db663817205f7ba43, copied 2026-10-14. This snapshot verifies packet compatibility and is not linked into receiver firmware. The transmitter repository remains authoritative for its parser.
