@@ -12,3 +12,5 @@ src/hardware
 # Receiver experiment outputs
 sport/**/build/
 sport/artifacts/
+
+.venv/

@@ -24,6 +24,9 @@ in WiFi after collection. No sensor telemetry is forwarded by default.
 ```sh
 git clone --branch codex/sport-telemetry https://github.com/cmlpreston/ExpressLRS-SPort.git
 cd ExpressLRS-SPort
+python3 -m venv .venv
+.venv/bin/python -m pip install platformio==6.1.19
+# Activate with: source .venv/bin/activate
 make -C sport test
 cd src/html
 npm ci
