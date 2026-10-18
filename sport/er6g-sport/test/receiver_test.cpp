@@ -89,6 +89,19 @@ int main() {
     assert(rollover.tick(11743,true)==A::None);
     assert(rollover.tick(11744,true)==A::Poll);
 
+    SportBus observed;
+    assert(observed.tick(0,false)==A::Poll);
+    assert(observed.tick(350,true)==A::Release);
+    feed(observed,{0,0,0},1); // Handover noise alone must not create a sample.
+    assert(!observed.takeSample(sample) && observed.checksumErrors()==0);
+    assert(observed.tick(12000,true)==A::Poll && observed.physicalId()==0xa1);
+    assert(observed.tick(12350,true)==A::Release);
+    // Captured wire data: zeros inside the payload must remain untouched.
+    feed(observed,{0,0x10,0,3,4,0,0,0,0xe8,0},13);
+    assert(observed.takeSample(sample) && sample.appId==0x0300 && sample.value==4);
+    assert(sample.physicalId==0xa1 && observed.checksumErrors()==0);
+    assert(observed.ignoredPrefixZeros()==4);
+
     SportTelemetry telemetry({{0x22,0x0300},{0x83,0x0400},0xa1,0});
     uint8_t out[19];
     assert(!telemetry.nextFrame(0,out,sizeof(out)));

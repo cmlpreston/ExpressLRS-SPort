@@ -139,3 +139,15 @@ This revision adds observation only; it does not change inversion, baud rate,
 poll cadence, TX release timing, or sensor selection. Repeat with the cell
 monitor alone and its battery connected. Save `/sport/status` after auto-WiFi
 without power-cycling, as before. No automatic flash is performed.
+
+## Diagnostic capture version 3: leading handover zeros
+
+The disconnected ER4 baseline showed a zero byte after almost every poll's TX
+release. With the cell monitor attached, ID 0xa1 returned
+`00 10 00 03 04 00 00 00 e8 00`. The middle eight bytes are a checksum-valid
+0x0300 data reply. Treating the initial zero as its header misaligned the parser.
+Version 3 ignores only zeros before the start of a reply. It preserves zeros
+inside the packet and still checks the normal checksum and frame type.
+`ignored_prefix_zeros` counts these discarded prefix bytes; raw diagnostics
+retain them. This handles the observed UART artifact without establishing its
+electrical cause or validating decoded cell voltages. Poll timing is unchanged.

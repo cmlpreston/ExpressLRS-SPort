@@ -52,7 +52,7 @@ public:
         entries[used++] = {s, now, 1};
     }
     SportWireObservation wire[32]{};
-    uint32_t rxBytes = 0, txPhaseBytes = 0, replyPhaseBytes = 0;
+    uint32_t rxBytes = 0, txPhaseBytes = 0, replyPhaseBytes = 0, ignoredPrefixZeros = 0;
     uint32_t releaseDiscardedBytes = 0, maxReleaseUs = 0;
     CapturedSample entries[32]{};
     uint32_t samples = 0, checksumErrors = 0, polls = 0, droppedKeys = 0;

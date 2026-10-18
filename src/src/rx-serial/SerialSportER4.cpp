@@ -44,6 +44,7 @@ void SerialSportER4::processBytes(uint8_t *bytes, uint16_t size) {
         }
     }
     er4SportCapture.checksumErrors = bus_.checksumErrors();
+    er4SportCapture.ignoredPrefixZeros = bus_.ignoredPrefixZeros();
 }
 void SerialSportER4::sendQueuedData(uint32_t maxBytesToSend) {
     if (connectionState >= wifiUpdate) {

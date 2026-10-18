@@ -30,6 +30,10 @@ void SportBus::feed(uint8_t byte, uint32_t nowMs)
 {
     if (state_ != Listening || completed_) return;
     if (prefix_) {
+        // The ER4 UART can report a zero when inverted TX is released, even
+        // with sensors disconnected. A data reply starts with 0x10; ignore
+        // only leading zero artifacts, never zeros within a started frame.
+        if (byte == 0) { ++ignoredPrefixZeros_; return; }
         parser_.feed(0x7e, nowMs, sample_);
         parser_.feed(physicalId_, nowMs, sample_);
         prefix_ = false;

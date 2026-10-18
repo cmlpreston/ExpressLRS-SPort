@@ -12,11 +12,12 @@ public:
     uint8_t physicalId() const { return physicalId_; }
     bool takeSample(SportSample &sample);
     uint32_t samples() const { return samples_; }
+    uint32_t ignoredPrefixZeros() const { return ignoredPrefixZeros_; }
     uint32_t checksumErrors() const { return parser_.checksumErrors(); }
 private:
     SportParser parser_;
     SportSample sample_{};
-    uint32_t startedUs_ = 0, releasedUs_ = 0, samples_ = 0;
+    uint32_t startedUs_ = 0, releasedUs_ = 0, samples_ = 0, ignoredPrefixZeros_ = 0;
     uint8_t index_ = 0, physicalId_ = 0;
     enum State { Ready, Sending, Listening } state_ = Ready;
     bool pending_ = false, prefix_ = false, completed_ = false;

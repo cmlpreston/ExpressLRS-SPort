@@ -71,9 +71,16 @@ int main() {
         assert(er4SportCapture.wire[1].physicalId==0xa1);
         clockUs=12400;adapter.sendQueuedData(32);clockUs=12580;adapter.sendQueuedData(32);
         connectionState=disconnected;
-        for(auto b:reply(90)) uart.rx.push_back(b);
+        // Exact bytes captured from the user's cell monitor, including the
+        // leading handover zero and trailing zero. Payload checksum is valid.
+        uart.rx={0,0x10,0,3,4,0,0,0,0xe8,0};
         clockUs=13000;adapter.processSerialInput();adapter.sendQueuedData(32);
         assert(er4SportCapture.samples==2 && crsfRouter.frames.size()==1);
+        assert(er4SportCapture.used==2 && er4SportCapture.checksumErrors==0);
+        assert(er4SportCapture.ignoredPrefixZeros==1);
+        assert(er4SportCapture.entries[1].sample.physicalId==0xa1);
+        assert(er4SportCapture.entries[1].sample.appId==0x0300);
+        assert(er4SportCapture.entries[1].sample.value==4);
         // WiFi entry releases even a poll in flight and retains discovery data.
         clockUs=24000;adapter.sendQueuedData(32);assert(modes[1]==FUNCTION_0);
         connectionState=wifiUpdate;adapter.sendQueuedData(32);

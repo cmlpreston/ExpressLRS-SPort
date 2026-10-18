@@ -1205,7 +1205,7 @@ static void startServices()
   server.on("/sport/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     JsonDocument doc;
     doc["firmware"] = "ER4 S.Port trial / ELRS 4.1.0";
-    doc["diagnostics_version"] = 2;
+    doc["diagnostics_version"] = 3;
     doc["capture_only_by_default"] = true;
     doc["driver_active"] = er4SportCapture.active;
     doc["polls"] = er4SportCapture.polls;
@@ -1215,6 +1215,7 @@ static void startServices()
     doc["rx_bytes"] = er4SportCapture.rxBytes;
     doc["tx_phase_bytes"] = er4SportCapture.txPhaseBytes;
     doc["reply_phase_bytes"] = er4SportCapture.replyPhaseBytes;
+    doc["ignored_prefix_zeros"] = er4SportCapture.ignoredPrefixZeros;
     doc["release_discarded_bytes"] = er4SportCapture.releaseDiscardedBytes;
     doc["max_release_us"] = er4SportCapture.maxReleaseUs;
     JsonArray observations = doc["wire_observations"].to<JsonArray>();
