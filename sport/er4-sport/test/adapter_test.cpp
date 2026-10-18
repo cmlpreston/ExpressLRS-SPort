@@ -83,13 +83,33 @@ int main() {
         assert(er4SportCapture.entries[1].sample.value==4);
         assert(er4SportCapture.entries[1].minRawValue==4 && er4SportCapture.entries[1].maxRawValue==4);
         assert(er4SportCapture.recentUsed==2 && er4SportCapture.recent[1].sample.appId==0x0300);
-        // WiFi entry releases even a poll in flight and retains discovery data.
+        // WiFi preserves the normal UART handover and accepts live replies.
         clockUs=24000;adapter.sendQueuedData(32);assert(modes[1]==FUNCTION_0);
-        connectionState=wifiUpdate;adapter.sendQueuedData(32);
-        assert(modes[1]==INPUT && !er4SportCapture.active);
-        auto sent=uart.tx.size();clockUs=25000;adapter.sendQueuedData(32);assert(uart.tx.size()==sent);
+        connectionState=wifiUpdate;
+        clockUs=24400;adapter.sendQueuedData(32);
+        clockUs=24580;adapter.sendQueuedData(32);
+        assert(modes[1]==INPUT && er4SportCapture.active);
+        for(auto b:reply(90)) uart.rx.push_back(b);
+        clockUs=25000;adapter.processSerialInput();adapter.sendQueuedData(32);
+        assert(er4SportCapture.samples==3 && crsfRouter.frames.size()==1);
+        clockUs=36000;adapter.sendQueuedData(32);assert(modes[1]==FUNCTION_0);
+        // A real upload releases immediately, even mid-poll, and stays paused.
+        er4SportBeginUpload();
+        assert(modes[1]==INPUT && !er4SportCapture.active && er4SportUploadInProgress);
+        auto sent=uart.tx.size();
+        for(auto b:reply(100)) uart.rx.push_back(b);
+        clockUs=37000;adapter.processSerialInput();adapter.sendQueuedData(32);
+        assert(uart.tx.size()==sent && er4SportCapture.samples==3);
+        connectionState=connected; // Failed upload must not silently restart polling.
+        clockUs=48000;adapter.sendQueuedData(32);assert(uart.tx.size()==sent);
+        // Simulate a fresh boot solely to exercise non-WiFi failure states.
+        er4SportUploadInProgress=false;
+        connectionState=radioFailed;adapter.sendQueuedData(32);
+        assert(modes[1]==INPUT && !er4SportCapture.active && uart.tx.size()==sent);
+        connectionState=serialUpdate;adapter.sendQueuedData(32);
+        assert(modes[1]==INPUT && !er4SportCapture.active && uart.tx.size()==sent);
     }
-    assert(modes[1]==INPUT && er4SportCapture.samples==2);
+    assert(modes[1]==INPUT && er4SportCapture.samples==3);
     onboard::SportCapture capture;
     for(unsigned i=0;i<33;++i)capture.accept({uint8_t(i),0x0400,i},10);
     assert(capture.used==32 && capture.droppedKeys==1 && capture.samples==33);

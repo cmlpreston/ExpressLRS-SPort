@@ -6,6 +6,8 @@
 #include "Er4TxDrain.h"
 #include "SportCapture.h"
 extern onboard::SportCapture er4SportCapture;
+extern bool er4SportUploadInProgress;
+void er4SportBeginUpload();
 class SerialSportER4 final : public SerialIO {
 public:
     SerialSportER4(Stream &out, Stream &in);

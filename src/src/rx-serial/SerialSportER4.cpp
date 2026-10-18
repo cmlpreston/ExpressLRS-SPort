@@ -22,18 +22,32 @@
 #define SPORT_GPS_INSTANCE 0xff
 #endif
 onboard::SportCapture er4SportCapture;
+bool er4SportUploadInProgress = false;
+void er4SportBeginUpload() {
+    // Called synchronously before Update.begin/write, not deferred until loop.
+    // Latch until reboot even if the upload fails or is cancelled.
+    er4SportUploadInProgress = true;
+    pinMode(1, INPUT);
+    er4SportCapture.active = false;
+}
+namespace {
+bool pollingAllowed() {
+    return !er4SportUploadInProgress &&
+        (connectionState < MODE_STATES || connectionState == wifiUpdate);
+}
+}
 SerialSportER4::SerialSportER4(Stream &out, Stream &in)
     : SerialIO(&out, &in), input_(in), telemetry_({
         {SPORT_CELLS_PHYSICAL_ID, SPORT_CELLS_APP_ID},
         {SPORT_TEMP_PHYSICAL_ID, SPORT_TEMP_APP_ID},
-        SPORT_GPS_PHYSICAL_ID, SPORT_GPS_INSTANCE}) { receiveMode(); er4SportCapture.active = true; }
+        SPORT_GPS_PHYSICAL_ID, SPORT_GPS_INSTANCE}) { receiveMode(); er4SportCapture.active = pollingAllowed(); }
 void SerialSportER4::receiveMode() {
     pinMode(1, INPUT); // Remove UART0 TX from GPIO1; no GPIO drive/pull-up.
     pinMode(3, FUNCTION_0); // UART0 RX, clear Arduino's ordinary RX pull-up.
 }
 SerialSportER4::~SerialSportER4() { pinMode(1, INPUT); er4SportCapture.active = false; }
 void SerialSportER4::processBytes(uint8_t *bytes, uint16_t size) {
-    if (connectionState >= wifiUpdate) return;
+    if (!pollingAllowed()) return;
     for (uint16_t i=0; i<size; ++i) {
         er4SportCapture.observeByte(bytes[i], sending_, false, micros());
         bus_.feed(bytes[i], millis());
@@ -47,11 +61,12 @@ void SerialSportER4::processBytes(uint8_t *bytes, uint16_t size) {
     er4SportCapture.ignoredPrefixZeros = bus_.ignoredPrefixZeros();
 }
 void SerialSportER4::sendQueuedData(uint32_t maxBytesToSend) {
-    if (connectionState >= wifiUpdate) {
+    if (!pollingAllowed()) {
         pinMode(1, INPUT);
         er4SportCapture.active = false;
-        return; // Retain capture for WiFi inspection; don't drive sensors in WiFi.
+        return; // Upload/failure/special modes retain capture and release TX.
     }
+    er4SportCapture.active = true;
     // Two-byte writes cannot block on a full FIFO: dedicated UART and check
     // room before asking the core to begin a poll. Never flush or busy-wait.
     const bool fifoEmpty = ((USS(0) >> USTXC) & 0xff) == 0;

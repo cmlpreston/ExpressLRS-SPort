@@ -7,6 +7,8 @@
 #if defined(ER4_SPORT_TRIAL) && defined(TARGET_RX)
 #include "SportCapture.h"
 extern onboard::SportCapture er4SportCapture;
+extern bool er4SportUploadInProgress;
+void er4SportBeginUpload();
 #endif
 #include <LittleFS.h>
 
@@ -852,6 +854,9 @@ static void WebUploadResponseHandler(AsyncWebServerRequest *request) {
 static void WebUploadDataHandler(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
   force_update = force_update || request->hasArg("force");
   if (index == 0) {
+    #if defined(ER4_SPORT_TRIAL) && defined(TARGET_RX)
+    er4SportBeginUpload(); // Release S.Port before Update.begin or flash writes.
+    #endif
     #if defined(TARGET_TX) && defined(PLATFORM_ESP32)
       WifiJoystick::StopJoystickService();
     #endif
@@ -1203,25 +1208,33 @@ static void startServices()
   server.on("/config", HTTP_GET, GetConfiguration);
 #if defined(ER4_SPORT_TRIAL) && defined(TARGET_RX)
   server.on("/sport/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+    // ESP8266 polling and HTTP callbacks share cooperative execution. Copy
+    // before JSON allocations/serialization can yield, for a coherent response.
+    static onboard::SportCapture snapshot;
+    snapshot = er4SportCapture;
+    const auto &capture = snapshot;
     JsonDocument doc;
     doc["firmware"] = "ER4 S.Port trial / ELRS 4.1.0";
-    doc["diagnostics_version"] = 4;
+    doc["diagnostics_version"] = 5;
+    doc["live_wifi_polling"] = true;
+    doc["upload_paused"] = er4SportUploadInProgress;
+    doc["uptime_ms"] = millis();
     doc["capture_only_by_default"] = true;
-    doc["driver_active"] = er4SportCapture.active;
-    doc["polls"] = er4SportCapture.polls;
-    doc["samples"] = er4SportCapture.samples;
-    doc["checksum_errors"] = er4SportCapture.checksumErrors;
-    doc["dropped_keys"] = er4SportCapture.droppedKeys;
-    doc["rx_bytes"] = er4SportCapture.rxBytes;
-    doc["tx_phase_bytes"] = er4SportCapture.txPhaseBytes;
-    doc["reply_phase_bytes"] = er4SportCapture.replyPhaseBytes;
-    doc["ignored_prefix_zeros"] = er4SportCapture.ignoredPrefixZeros;
-    doc["release_discarded_bytes"] = er4SportCapture.releaseDiscardedBytes;
-    doc["max_release_us"] = er4SportCapture.maxReleaseUs;
+    doc["driver_active"] = capture.active;
+    doc["polls"] = capture.polls;
+    doc["samples"] = capture.samples;
+    doc["checksum_errors"] = capture.checksumErrors;
+    doc["dropped_keys"] = capture.droppedKeys;
+    doc["rx_bytes"] = capture.rxBytes;
+    doc["tx_phase_bytes"] = capture.txPhaseBytes;
+    doc["reply_phase_bytes"] = capture.replyPhaseBytes;
+    doc["ignored_prefix_zeros"] = capture.ignoredPrefixZeros;
+    doc["release_discarded_bytes"] = capture.releaseDiscardedBytes;
+    doc["max_release_us"] = capture.maxReleaseUs;
     JsonArray observations = doc["wire_observations"].to<JsonArray>();
     unsigned diagnosticRows = 0;
     bool diagnosticTruncated = false;
-    for (const auto &observation : er4SportCapture.wire) {
+    for (const auto &observation : capture.wire) {
       if (!observation.txBytes && !observation.rxBytes) continue;
       // Ordinary two-byte poll echo adds no information beyond the totals.
       if (!observation.rxBytes && observation.txLength == 2 &&
@@ -1240,8 +1253,8 @@ static void startServices()
     }
     doc["wire_observations_truncated"] = diagnosticTruncated;
     JsonArray entries = doc["readings"].to<JsonArray>();
-    for (unsigned i=0; i<er4SportCapture.used; ++i) {
-      const auto &entry = er4SportCapture.entries[i];
+    for (unsigned i=0; i<capture.used; ++i) {
+      const auto &entry = capture.entries[i];
       JsonObject row = entries.add<JsonObject>();
       row["physical_id"] = entry.sample.physicalId;
       row["application_id"] = entry.sample.appId;
@@ -1252,9 +1265,9 @@ static void startServices()
       row["max_raw_value"] = entry.maxRawValue;
     }
     JsonArray recent = doc["recent_samples"].to<JsonArray>();
-    const unsigned start = er4SportCapture.recentUsed == 16 ? er4SportCapture.recentNext : 0;
-    for (unsigned i=0; i<er4SportCapture.recentUsed; ++i) {
-      const auto &entry = er4SportCapture.recent[(start + i) % 16];
+    const unsigned start = capture.recentUsed == 16 ? capture.recentNext : 0;
+    for (unsigned i=0; i<capture.recentUsed; ++i) {
+      const auto &entry = capture.recent[(start + i) % 16];
       JsonObject row = recent.add<JsonObject>();
       row["physical_id"] = entry.sample.physicalId;
       row["application_id"] = entry.sample.appId;

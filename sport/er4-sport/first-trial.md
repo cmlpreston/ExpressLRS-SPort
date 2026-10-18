@@ -180,3 +180,20 @@ or voltage-decoding behaviour changes in this revision.
 
 The standard cell layout was checked against OpenTX's implementation:
 https://github.com/opentx/opentx/blob/2.3/radio/src/telemetry/frsky_sport.cpp#L138-L147
+
+## Diagnostic version 5: live polling in WiFi
+
+Version 5 supersedes the earlier capture-then-stop workflow. S.Port polling
+continues in ordinary receiver WiFi mode, so repeated GETs of `/sport/status`
+show fresh samples without rebooting. `live_wifi_polling` is true, `uptime_ms`
+provides the receiver clock, and `driver_active` should remain true. Individual
+sample ages can be calculated from uptime minus updated_ms. Status serialization
+uses a bounded snapshot so JSON allocation does not mix successive captures.
+
+This enables wired S.Port diagnostics only. ExpressLRS still stops its radio
+link on entry to WiFi; it does not enable RC operation alongside WiFi.
+Before the first firmware upload chunk calls Update.begin, the adapter releases
+TX immediately and latches `upload_paused` until reboot, including failed or
+cancelled updates. Serial update and failure states also inhibit polling.
+The user explicitly authorized the connected-S.Port bench upload trial on
+2026-10-18; this does not establish reset waveforms or general hardware safety.
