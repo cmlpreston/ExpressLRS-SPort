@@ -22,14 +22,22 @@ def validate_git(branch, base_ok, remote_ok, dirty):
     if dirty:
         raise ValueError('Commit and review receiver changes before an upload; checkout must be clean.')
 
+def validate_version_file(actual, pinned):
+    # Upstream keeps a git-archive placeholder here, not a release number.
+    # The fixed base commit and ancestry check establish the release version.
+    if actual != pinned:
+        raise ValueError('VERSION differs from the pinned ExpressLRS 4.1.0 source.')
+
 def run(env, targets):
     project = Path(env.subst('$PROJECT_DIR')).resolve()
     root = project.parent
     validate_target(env.subst('$PIOENV'), env.subst('$BOARD'), env.GetProjectOption('board_config', ''), targets)
-    if (project / 'VERSION').read_text().strip() != '4.1.0':
-        raise ValueError('This experiment is pinned to ExpressLRS 4.1.0.')
     def git(*args):
         return subprocess.run(['git', *args], cwd=root, text=True, capture_output=True)
+    pinned_version = git('show', BASE_COMMIT + ':src/VERSION')
+    if pinned_version.returncode:
+        raise ValueError('Cannot read VERSION from the pinned ExpressLRS 4.1.0 base.')
+    validate_version_file((project / 'VERSION').read_text(), pinned_version.stdout)
     fetched = git('fetch', 'origin', TRIAL_BRANCH)
     if fetched.returncode:
         raise ValueError('Could not refresh receiver origin branch: ' + fetched.stderr.strip())
