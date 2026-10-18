@@ -216,3 +216,32 @@ handover needs sub-millisecond servicing. Version 7 uses delay(0), still yieldin
 to WiFi, only when the ER4 S.Port adapter is active and no upload is latched.
 Other receivers/protocols and actual updates retain upstream behaviour. Check
 successive sample timestamps as well as poll counts when validating live mode.
+
+## Diagnostic version 8: receive-only comparison with X4R
+
+This mode helps compare the sensor's raw data under an original FrSky bus master
+with its data under the experimental ER4 poller. It does not enable forwarding.
+POST `/sport/sniff` switches the ER4 to receive-only immediately, clears the
+previous capture and holds output 2 TX as input. `/sport/status` reports
+`mode: "sniff"`, `observed_polls` counts external poll headers, and `polls` stays
+zero. Normal checksums still apply. Live WiFi GETs remain available. The switch
+is one-way for that boot; reboot restores poll mode. An upload latch refuses
+mode changes. Raw per-ID traces may include the external header/ID bytes.
+
+Prepare the harness with all receiver/sensor power OFF:
+
+* Disconnect ER4 output 2 SIGNAL from the bus entirely. Leave it disconnected
+  throughout this comparison, including resets and firmware updates. This
+  physically prevents its boot UART or default polling mode driving the X4R bus.
+* Connect only ER4 output 3 SIGNAL to the X4R/sensor S.Port SIGNAL and join GND.
+* Let the X4R power the sensor chain as in the known working setup. Supply the
+  ER4 appropriately; don't join independently powered positive rails.
+* Power up with the ER4 TX still physically disconnected, wait for its WebUI,
+  POST `/sport/sniff`, then verify that mode before interpreting captured data.
+  The X4R must be operating in its usual telemetry setup so it actually polls.
+
+The sniffer samples GPIO3 at inverted 57600 8N1, reading the X4R's real headers,
+physical IDs and replies. Captures with nonzero cell voltage fields establish
+that a difference in bus-master/startup behaviour needs further investigation.
+If those fields remain zero, the comparison has not established that the ER4
+poller is responsible. Do not bypass validation or synthesize missing voltages.

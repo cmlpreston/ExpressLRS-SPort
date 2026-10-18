@@ -19,6 +19,14 @@ struct SportWireObservation {
 };
 class SportCapture {
 public:
+    void reset() {
+        used = recentUsed = recentNext = 0;
+        samples = checksumErrors = polls = droppedKeys = 0;
+        rxBytes = txPhaseBytes = replyPhaseBytes = ignoredPrefixZeros = 0;
+        releaseDiscardedBytes = maxReleaseUs = 0;
+        currentId_ = txCount_ = rxCount_ = 0; pollUs_ = 0; active = false;
+        for (auto &row : wire) row = {};
+    }
     void beginPoll(uint8_t id, uint32_t nowUs) {
         currentId_ = id & 31;
         wire[currentId_].physicalId = id;

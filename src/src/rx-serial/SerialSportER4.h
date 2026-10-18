@@ -8,12 +8,16 @@
 extern onboard::SportCapture er4SportCapture;
 extern bool er4SportUploadInProgress;
 void er4SportBeginUpload();
+extern bool er4SportSniffMode;
+extern uint32_t er4SportObservedPolls;
+bool er4SportEnableSniffer();
 class SerialSportER4 final : public SerialIO {
 public:
     SerialSportER4(Stream &out, Stream &in);
     ~SerialSportER4() override;
     uint32_t sendRCFrame(bool, bool, uint32_t *) override { return DURATION_IMMEDIATELY; }
     void sendQueuedData(uint32_t maxBytesToSend) override;
+    void enableSniffer();
 protected:
     int getMaxSerialReadSize() override { return 32; }
     void processBytes(uint8_t *bytes, uint16_t size) override;
@@ -21,6 +25,8 @@ private:
     Stream &input_;
     onboard::SportBus bus_;
     onboard::Er4TxDrain drain_;
+    onboard::SportParser sniffer_;
+    bool awaitingId_ = false;
     onboard::SportTelemetry telemetry_;
     bool sending_ = false;
     void receiveMode();

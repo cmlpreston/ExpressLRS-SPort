@@ -23,6 +23,14 @@
 #endif
 onboard::SportCapture er4SportCapture;
 bool er4SportUploadInProgress = false;
+bool er4SportSniffMode = false;
+uint32_t er4SportObservedPolls = 0;
+static SerialSportER4 *er4SportAdapter = nullptr;
+bool er4SportEnableSniffer() {
+    if (!er4SportAdapter || er4SportUploadInProgress) return false;
+    er4SportAdapter->enableSniffer();
+    return true;
+}
 void er4SportBeginUpload() {
     // Called synchronously before Update.begin/write, not deferred until loop.
     // Latch until reboot even if the upload fails or is cancelled.
@@ -40,25 +48,47 @@ SerialSportER4::SerialSportER4(Stream &out, Stream &in)
     : SerialIO(&out, &in), input_(in), telemetry_({
         {SPORT_CELLS_PHYSICAL_ID, SPORT_CELLS_APP_ID},
         {SPORT_TEMP_PHYSICAL_ID, SPORT_TEMP_APP_ID},
-        SPORT_GPS_PHYSICAL_ID, SPORT_GPS_INSTANCE}) { receiveMode(); er4SportCapture.active = pollingAllowed(); }
+        SPORT_GPS_PHYSICAL_ID, SPORT_GPS_INSTANCE}) { receiveMode(); er4SportAdapter = this; er4SportCapture.active = pollingAllowed(); }
 void SerialSportER4::receiveMode() {
     pinMode(1, INPUT); // Remove UART0 TX from GPIO1; no GPIO drive/pull-up.
     pinMode(3, FUNCTION_0); // UART0 RX, clear Arduino's ordinary RX pull-up.
 }
-SerialSportER4::~SerialSportER4() { pinMode(1, INPUT); er4SportCapture.active = false; }
+SerialSportER4::~SerialSportER4() {
+    er4SportAdapter = nullptr; pinMode(1, INPUT); er4SportCapture.active = false;
+}
+void SerialSportER4::enableSniffer() {
+    er4SportSniffMode = true; // One-way for this boot. Reboot restores polling.
+    receiveMode(); sending_ = false; awaitingId_ = false;
+    for (unsigned i=0; i<256 && input_.available(); ++i) input_.read();
+    sniffer_ = onboard::SportParser{};
+    er4SportCapture.reset(); er4SportObservedPolls = 0;
+    er4SportCapture.active = pollingAllowed();
+}
 void SerialSportER4::processBytes(uint8_t *bytes, uint16_t size) {
     if (!pollingAllowed()) return;
     for (uint16_t i=0; i<size; ++i) {
-        er4SportCapture.observeByte(bytes[i], sending_, false, micros());
-        bus_.feed(bytes[i], millis());
         onboard::SportSample sample;
-        if (bus_.takeSample(sample)) {
+        bool accepted = false;
+        if (er4SportSniffMode) {
+            if (bytes[i] == 0x7e) awaitingId_ = true;
+            else if (awaitingId_) {
+                er4SportCapture.beginPoll(bytes[i], micros());
+                ++er4SportObservedPolls; awaitingId_ = false;
+            }
+            er4SportCapture.observeByte(bytes[i], false, false, micros());
+            accepted = sniffer_.feed(bytes[i], millis(), sample);
+        } else {
+            er4SportCapture.observeByte(bytes[i], sending_, false, micros());
+            bus_.feed(bytes[i], millis());
+            accepted = bus_.takeSample(sample);
+        }
+        if (accepted) {
             er4SportCapture.accept(sample, millis());
             telemetry_.accept(sample, millis());
         }
     }
-    er4SportCapture.checksumErrors = bus_.checksumErrors();
-    er4SportCapture.ignoredPrefixZeros = bus_.ignoredPrefixZeros();
+    er4SportCapture.checksumErrors = er4SportSniffMode ? sniffer_.checksumErrors() : bus_.checksumErrors();
+    er4SportCapture.ignoredPrefixZeros = er4SportSniffMode ? 0 : bus_.ignoredPrefixZeros();
 }
 void SerialSportER4::sendQueuedData(uint32_t maxBytesToSend) {
     if (!pollingAllowed()) {
@@ -67,6 +97,7 @@ void SerialSportER4::sendQueuedData(uint32_t maxBytesToSend) {
         return; // Upload/failure/special modes retain capture and release TX.
     }
     er4SportCapture.active = true;
+    if (er4SportSniffMode) return; // GPIO1 stays input; never write a poll.
     // Two-byte writes cannot block on a full FIFO: dedicated UART and check
     // room before asking the core to begin a poll. Never flush or busy-wait.
     const bool fifoEmpty = ((USS(0) >> USTXC) & 0xff) == 0;

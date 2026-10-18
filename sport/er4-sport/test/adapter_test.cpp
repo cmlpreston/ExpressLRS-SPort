@@ -110,6 +110,42 @@ int main() {
         assert(modes[1]==INPUT && !er4SportCapture.active && uart.tx.size()==sent);
     }
     assert(modes[1]==INPUT && er4SportCapture.samples==3);
+    connectionState=wifiUpdate;
+    {
+        SerialSportER4 adapter(uart,uart);
+        uart.rx={0x55,0xaa};
+        auto sent=uart.tx.size();
+        assert(er4SportEnableSniffer());
+        assert(er4SportSniffMode && modes[1]==INPUT && uart.rx.empty());
+        assert(er4SportCapture.samples==0 && er4SportCapture.used==0);
+        clockUs=100000;adapter.sendQueuedData(32);assert(uart.tx.size()==sent);
+        // Independent full X4R poll/reply fixture with a nonzero 4S cell pair.
+        std::vector<uint8_t> wire={0x7e,0xa1};
+        std::vector<uint8_t> body={0x10,0,3,0x40,0x34,0xa8,0x82};
+        unsigned sum=0;
+        for(auto b:body) {sum+=b;sum=(sum&255)+(sum>>8);}
+        body.push_back(uint8_t(255-sum));
+        for(auto b:body) {
+            if(b==0x7d || b==0x7e) {wire.push_back(0x7d);wire.push_back(b^0x20);}
+            else wire.push_back(b);
+        }
+        for(unsigned i=0;i<5;++i) uart.rx.push_back(wire[i]);
+        adapter.processSerialInput();assert(er4SportCapture.samples==0);
+        for(unsigned i=5;i<wire.size();++i) uart.rx.push_back(wire[i]);
+        adapter.processSerialInput();adapter.sendQueuedData(32);
+        assert(er4SportObservedPolls==1 && er4SportCapture.polls==0);
+        assert(er4SportCapture.samples==1 && er4SportCapture.checksumErrors==0);
+        assert(er4SportCapture.entries[0].sample.physicalId==0xa1);
+        assert(er4SportCapture.entries[0].sample.appId==0x300);
+        assert(er4SportCapture.entries[0].sample.value==0x82a83440);
+        assert(uart.tx.size()==sent && modes[1]==INPUT);
+        clockUs=200000;adapter.sendQueuedData(32);assert(uart.tx.size()==sent);
+        er4SportBeginUpload();assert(!er4SportEnableSniffer());
+        for(auto b:wire) uart.rx.push_back(b);
+        adapter.processSerialInput();adapter.sendQueuedData(32);
+        assert(er4SportCapture.samples==1 && uart.tx.size()==sent && modes[1]==INPUT);
+    }
+    assert(!er4SportEnableSniffer());
     onboard::SportCapture capture;
     for(unsigned i=0;i<33;++i)capture.accept({uint8_t(i),0x0400,i},10);
     assert(capture.used==32 && capture.droppedKeys==1 && capture.samples==33);
@@ -133,5 +169,8 @@ int main() {
     capture.observeByte(0x10, false, false, 120);
     assert(capture.wire[1].rxLength==1 && capture.wire[1].rx[0]==0x10);
     assert(capture.wire[1].rxBytes==41 && capture.wire[1].firstRxUs==20);
+    capture.reset();
+    assert(capture.used==0 && capture.recentUsed==0 && capture.samples==0);
+    assert(capture.rxBytes==0 && capture.wire[1].rxBytes==0);
     puts("ER4 actual adapter, UART drain, echo, RF gating, shutdown, capture and bench defaults passed");
 }

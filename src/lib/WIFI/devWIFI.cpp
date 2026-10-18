@@ -9,6 +9,9 @@
 extern onboard::SportCapture er4SportCapture;
 extern bool er4SportUploadInProgress;
 void er4SportBeginUpload();
+extern bool er4SportSniffMode;
+extern uint32_t er4SportObservedPolls;
+bool er4SportEnableSniffer();
 #endif
 #include <LittleFS.h>
 
@@ -1207,6 +1210,13 @@ static void startServices()
   server.on("/connect", WebUpdateConnect);
   server.on("/config", HTTP_GET, GetConfiguration);
 #if defined(ER4_SPORT_TRIAL) && defined(TARGET_RX)
+  server.on("/sport/sniff", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (!er4SportEnableSniffer()) {
+      request->send(409, "application/json", "{\"error\":\"driver_unavailable_or_upload_paused\"}");
+      return;
+    }
+    request->send(200, "application/json", "{\"mode\":\"sniff\",\"tx_released\":true}");
+  });
   server.on("/sport/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     // ESP8266 polling and HTTP callbacks share cooperative execution. Copy
     // before JSON allocations/serialization can yield, for a coherent response.
@@ -1217,10 +1227,13 @@ static void startServices()
     JsonVariant &doc = response->getRoot();
     const bool raw = request->hasArg("raw") && request->arg("raw") == "1";
     doc["firmware"] = "ER4 S.Port trial / ELRS 4.1.0";
-    doc["diagnostics_version"] = 7;
+    doc["diagnostics_version"] = 8;
+    doc["mode"] = er4SportSniffMode ? "sniff" : "poll";
+    doc["observed_polls"] = er4SportObservedPolls;
     doc["raw_included"] = raw;
     doc["free_heap"] = ESP.getFreeHeap();
-    doc["live_wifi_polling"] = true;
+    doc["live_wifi_polling"] = !er4SportSniffMode;
+    doc["live_wifi_capture"] = true;
     doc["upload_paused"] = er4SportUploadInProgress;
     doc["uptime_ms"] = millis();
     doc["capture_only_by_default"] = true;
