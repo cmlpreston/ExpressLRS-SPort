@@ -207,3 +207,12 @@ without a second full String allocation. Add `?raw=1` for bounded wire traces
 and the 16-sample history. `free_heap` reports available heap while constructing
 the response, and JSON allocation overflow returns HTTP 503 instead of silently
 sending an incomplete status. This revision retains the live-polling/upload latch.
+
+## Diagnostic version 7: WiFi loop handover latency
+
+Bench version 6 showed increasing polls but no new valid samples after WiFi
+started. The upstream ESP8266 WiFi loop calls delay(1) each iteration; the UART
+handover needs sub-millisecond servicing. Version 7 uses delay(0), still yielding
+to WiFi, only when the ER4 S.Port adapter is active and no upload is latched.
+Other receivers/protocols and actual updates retain upstream behaviour. Check
+successive sample timestamps as well as poll counts when validating live mode.

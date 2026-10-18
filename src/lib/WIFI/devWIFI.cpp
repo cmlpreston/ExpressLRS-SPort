@@ -1217,7 +1217,7 @@ static void startServices()
     JsonVariant &doc = response->getRoot();
     const bool raw = request->hasArg("raw") && request->arg("raw") == "1";
     doc["firmware"] = "ER4 S.Port trial / ELRS 4.1.0";
-    doc["diagnostics_version"] = 6;
+    doc["diagnostics_version"] = 7;
     doc["raw_included"] = raw;
     doc["free_heap"] = ESP.getFreeHeap();
     doc["live_wifi_polling"] = true;
@@ -1492,8 +1492,16 @@ static int timeout()
     // When in STA mode, a small delay reduces power use from 90mA to 30mA when idle
     // In AP mode, it doesn't seem to make a measurable difference, but does not hurt
     // Only done on 8266 as the ESP32 runs a throttled task
-    if (!Update.isRunning())
-      delay(1);
+    if (!Update.isRunning()) {
+#if defined(ER4_SPORT_TRIAL) && defined(TARGET_RX)
+      // A 1 ms sleep delays UART TX release across the sensor reply window.
+      // Yield to the WiFi stack without that extra sleep during live polling.
+      if (er4SportCapture.active && !er4SportUploadInProgress)
+        delay(0);
+      else
+#endif
+        delay(1);
+    }
     return DURATION_IMMEDIATELY;
 #else
     // All the web traffic is async apart from changing modes and MSP2WIFI
