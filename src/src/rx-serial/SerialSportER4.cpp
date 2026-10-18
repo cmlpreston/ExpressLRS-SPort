@@ -35,6 +35,7 @@ SerialSportER4::~SerialSportER4() { pinMode(1, INPUT); er4SportCapture.active = 
 void SerialSportER4::processBytes(uint8_t *bytes, uint16_t size) {
     if (connectionState >= wifiUpdate) return;
     for (uint16_t i=0; i<size; ++i) {
+        er4SportCapture.observeByte(bytes[i], sending_, false, micros());
         bus_.feed(bytes[i], millis());
         onboard::SportSample sample;
         if (bus_.takeSample(sample)) {
@@ -57,13 +58,18 @@ void SerialSportER4::sendQueuedData(uint32_t maxBytesToSend) {
     const bool txDone = sending_ && drain_.ready(micros(), fifoEmpty);
     const auto action = bus_.tick(micros(), txDone);
     if (action == onboard::SportBus::Action::Poll) {
+        er4SportCapture.beginPoll(bus_.physicalId(), micros());
         pinMode(1, FUNCTION_0); // Restore inverted hardware UART TX.
         _outputPort->write(uint8_t(0x7e));
         _outputPort->write(bus_.physicalId());
         drain_.begin(); sending_ = true; ++er4SportCapture.polls;
     } else if (action == onboard::SportBus::Action::Release) {
-        for (unsigned i=0; i<32 && input_.available(); ++i) input_.read();
+        for (unsigned i=0; i<32 && input_.available(); ++i) {
+            const int byte = input_.read();
+            if (byte >= 0) er4SportCapture.observeByte(uint8_t(byte), true, true, micros());
+        }
         receiveMode(); sending_ = false;
+        er4SportCapture.released(micros());
     }
     (void)maxBytesToSend;
     if (connectionState != connected) return;

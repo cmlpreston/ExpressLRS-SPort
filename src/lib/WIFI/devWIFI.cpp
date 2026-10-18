@@ -1205,12 +1205,39 @@ static void startServices()
   server.on("/sport/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     JsonDocument doc;
     doc["firmware"] = "ER4 S.Port trial / ELRS 4.1.0";
+    doc["diagnostics_version"] = 2;
     doc["capture_only_by_default"] = true;
     doc["driver_active"] = er4SportCapture.active;
     doc["polls"] = er4SportCapture.polls;
     doc["samples"] = er4SportCapture.samples;
     doc["checksum_errors"] = er4SportCapture.checksumErrors;
     doc["dropped_keys"] = er4SportCapture.droppedKeys;
+    doc["rx_bytes"] = er4SportCapture.rxBytes;
+    doc["tx_phase_bytes"] = er4SportCapture.txPhaseBytes;
+    doc["reply_phase_bytes"] = er4SportCapture.replyPhaseBytes;
+    doc["release_discarded_bytes"] = er4SportCapture.releaseDiscardedBytes;
+    doc["max_release_us"] = er4SportCapture.maxReleaseUs;
+    JsonArray observations = doc["wire_observations"].to<JsonArray>();
+    unsigned diagnosticRows = 0;
+    bool diagnosticTruncated = false;
+    for (const auto &observation : er4SportCapture.wire) {
+      if (!observation.txBytes && !observation.rxBytes) continue;
+      // Ordinary two-byte poll echo adds no information beyond the totals.
+      if (!observation.rxBytes && observation.txLength == 2 &&
+          observation.tx[0] == 0x7e && observation.tx[1] == observation.physicalId) continue;
+      // Bound temporary JSON memory on the ESP8285 while WiFi is running.
+      if (diagnosticRows++ >= 8) { diagnosticTruncated = true; continue; }
+      JsonObject row = observations.add<JsonObject>();
+      row["physical_id"] = observation.physicalId;
+      row["tx_phase_bytes"] = observation.txBytes;
+      row["reply_phase_bytes"] = observation.rxBytes;
+      row["first_reply_read_us"] = observation.firstRxUs;
+      JsonArray tx = row["last_tx_bytes"].to<JsonArray>();
+      for (unsigned i=0; i<observation.txLength; ++i) tx.add(observation.tx[i]);
+      JsonArray rx = row["last_reply_bytes"].to<JsonArray>();
+      for (unsigned i=0; i<observation.rxLength; ++i) rx.add(observation.rx[i]);
+    }
+    doc["wire_observations_truncated"] = diagnosticTruncated;
     JsonArray entries = doc["readings"].to<JsonArray>();
     for (unsigned i=0; i<er4SportCapture.used; ++i) {
       const auto &entry = er4SportCapture.entries[i];

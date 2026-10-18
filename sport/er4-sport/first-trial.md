@@ -114,3 +114,28 @@ The firmware is source-discovery only by default: no sensor telemetry will yet
 appear on the transmitter. The first useful result is this ID/value capture.
 
 Reference: [ExpressLRS WiFi updating](https://www.expresslrs.org/software/updating/wifi-updating/).
+
+## Diagnostic capture version 2
+
+The status now includes `diagnostics_version: 2`. `rx_bytes` counts all UART
+bytes read by the adapter, including local TX echo; it is not a sensor-reply
+count. `tx_phase_bytes` counts bytes consumed while the driver still owns TX,
+and `release_discarded_bytes` is the subset cleared at handover.
+`reply_phase_bytes` counts bytes read after TX release.
+
+`max_release_us` is the longest observed poll-start-to-release time, including
+loop scheduling delay (a two-byte poll itself takes about 347 us at 57600 baud).
+`wire_observations` retains per-ID totals and the first 16 bytes of the last
+nonempty TX/reply observation for that physical ID, as decimal byte arrays.
+These arrays survive subsequent silent polls. Ordinary poll-echo-only IDs
+are omitted from JSON, and at most eight diagnostic rows are returned to bound
+WiFi memory use; `wire_observations_truncated` reports additional eligible IDs. They may be partial, corrupt,
+local echo, or sensor data; they are not validated frames.
+`first_reply_read_us` is when software first *read* bytes relative to that poll,
+not a scope measurement of their arrival time. The TX and reply snapshots can
+come from different polls; use their totals and contents as diagnostics only.
+
+This revision adds observation only; it does not change inversion, baud rate,
+poll cadence, TX release timing, or sensor selection. Repeat with the cell
+monitor alone and its battery connected. Save `/sport/status` after auto-WiFi
+without power-cycling, as before. No automatic flash is performed.

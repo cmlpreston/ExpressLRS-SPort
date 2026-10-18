@@ -52,13 +52,23 @@ int main() {
         uart.rx={0x7e,0};clockUs=379;adapter.sendQueuedData(32);assert(!uart.rx.empty());
         clockUs=380;adapter.sendQueuedData(32);
         assert(modes[1]==INPUT && uart.rx.empty()); // Echo discarded before release.
+        assert(er4SportCapture.rxBytes==2 && er4SportCapture.txPhaseBytes==2);
+        assert(er4SportCapture.releaseDiscardedBytes==2 && er4SportCapture.maxReleaseUs==380);
+        assert(er4SportCapture.wire[0].txLength==2 && er4SportCapture.wire[0].tx[0]==0x7e);
         const auto bytes=reply(80);for(auto b:bytes) uart.rx.push_back(b);
         clockUs=1000;adapter.processSerialInput();adapter.sendQueuedData(32);
         assert(er4SportCapture.samples==1 && er4SportCapture.used==1);
+        assert(er4SportCapture.replyPhaseBytes==8 && er4SportCapture.rxBytes==10);
+        assert(er4SportCapture.wire[0].rxLength==8 && er4SportCapture.wire[0].rx[0]==0x10);
+        assert(er4SportCapture.wire[0].firstRxUs==1000);
         assert(er4SportCapture.entries[0].sample.physicalId==0 && er4SportCapture.entries[0].sample.value==80);
         assert(crsfRouter.frames.size()==1 && crsfRouter.frames[0][2]==0x0d);
         assert(crsfRouter.frames[0][4]==3 && crsfRouter.frames[0][5]==0x20);
         clockUs=12000;adapter.sendQueuedData(32);assert(uart.tx.back()==0xa1);
+        // Echo read by the normal loop while TX is active is counted, not parsed.
+        uart.rx={0x7e,0xa1};adapter.processSerialInput();
+        assert(er4SportCapture.txPhaseBytes==4 && er4SportCapture.samples==1);
+        assert(er4SportCapture.wire[1].physicalId==0xa1);
         clockUs=12400;adapter.sendQueuedData(32);clockUs=12580;adapter.sendQueuedData(32);
         connectionState=disconnected;
         for(auto b:reply(90)) uart.rx.push_back(b);
@@ -76,5 +86,16 @@ int main() {
     assert(capture.used==32 && capture.droppedKeys==1 && capture.samples==33);
     capture.accept({0,0x0400,123},20);
     assert(capture.used==32 && capture.entries[0].count==2 && capture.entries[0].sample.value==123);
+    // Traces are bounded and retain the last nonempty observation over empty polls.
+    capture.beginPoll(0xa1, 0xfffffff0);
+    for (unsigned i=0; i<40; ++i) capture.observeByte(uint8_t(i), false, false, 20);
+    assert(capture.wire[1].rxLength==16 && capture.wire[1].rx[15]==15);
+    assert(capture.wire[1].rxBytes==40 && capture.wire[1].firstRxUs==36);
+    capture.released(30);assert(capture.maxReleaseUs==46);
+    capture.beginPoll(0xa1, 100);
+    assert(capture.wire[1].rxLength==16);
+    capture.observeByte(0x10, false, false, 120);
+    assert(capture.wire[1].rxLength==1 && capture.wire[1].rx[0]==0x10);
+    assert(capture.wire[1].rxBytes==41 && capture.wire[1].firstRxUs==20);
     puts("ER4 actual adapter, UART drain, echo, RF gating, shutdown, capture and bench defaults passed");
 }
