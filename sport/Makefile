@@ -4,6 +4,7 @@ test:
 	$(MAKE) -C er6g-sport test
 	$(MAKE) -C sport-crsf test
 	python3 test_preflight.py
+	python3 test_local_wifi.py
 clean:
 	$(MAKE) -C er4-sport clean
 	$(MAKE) -C er6g-sport clean

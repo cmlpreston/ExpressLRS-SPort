@@ -7,6 +7,7 @@ import fnmatch
 import time
 import re
 import elrs_helpers
+from sport_local_wifi import load_local_wifi
 
 build_flags = env.get('BUILD_FLAGS', [])
 json_flags = {}
@@ -139,6 +140,9 @@ json_flags['wifi-on-interval'] = -1
 
 process_flags("user_defines.txt")
 process_flags("super_defines.txt") # allow secret super_defines to override user_defines
+# Store private defaults only in the appended firmware options JSON. Keeping
+# them out of BUILD_FLAGS avoids exposing credentials in compiler command logs.
+json_flags.update(load_local_wifi(env.subst('$PROJECT_DIR'), env.subst('$PIOENV')))
 version_to_env()
 build_flags.append("-DLATEST_COMMIT=" + get_git_sha())
 build_flags.append("-DLATEST_VERSION=" + get_version())

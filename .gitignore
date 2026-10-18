@@ -14,3 +14,6 @@ sport/**/build/
 sport/artifacts/
 
 .venv/
+
+# Private network defaults embedded only in local ER4 trial builds
+/src/sport-wifi.local.json

@@ -151,3 +151,19 @@ inside the packet and still checks the normal checksum and frame type.
 `ignored_prefix_zeros` counts these discarded prefix bytes; raw diagnostics
 retain them. This handles the observed UART artifact without establishing its
 electrical cause or validating decoded cell voltages. Poll timing is unchanged.
+
+## Include home WiFi in local ER4 builds
+
+The optional `src/sport-wifi.local.json` file supplies `wifi-ssid` and
+`wifi-password` defaults for the ER4 trial build/WiFi environments. It is ignored
+by Git and must have owner-only permissions (`chmod 600`). Other environments
+ignore it. It contains just those two string keys. Credentials are added directly
+to firmware options, never to compiler flags or the usual build-flags output.
+They are nevertheless present in the built firmware: do not publish a binary
+built with private WiFi credentials. CI builds without this file remain generic.
+
+ExpressLRS assigns a new flash discriminator during a build. Saved WebUI
+options from an older firmware discriminator are not reused. Embedded local
+WiFi defaults therefore let the receiver rejoin home WiFi when auto-WiFi starts
+after each upload. The router still assigns its IP; this does not reserve a
+fixed address. These defaults do not enable concurrent S.Port capture and WiFi.
