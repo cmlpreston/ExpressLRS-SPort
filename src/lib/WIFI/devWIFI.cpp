@@ -1213,9 +1213,13 @@ static void startServices()
     static onboard::SportCapture snapshot;
     snapshot = er4SportCapture;
     const auto &capture = snapshot;
-    JsonDocument doc;
+    auto *response = new AsyncJsonResponse();
+    JsonVariant &doc = response->getRoot();
+    const bool raw = request->hasArg("raw") && request->arg("raw") == "1";
     doc["firmware"] = "ER4 S.Port trial / ELRS 4.1.0";
-    doc["diagnostics_version"] = 5;
+    doc["diagnostics_version"] = 6;
+    doc["raw_included"] = raw;
+    doc["free_heap"] = ESP.getFreeHeap();
     doc["live_wifi_polling"] = true;
     doc["upload_paused"] = er4SportUploadInProgress;
     doc["uptime_ms"] = millis();
@@ -1231,27 +1235,29 @@ static void startServices()
     doc["ignored_prefix_zeros"] = capture.ignoredPrefixZeros;
     doc["release_discarded_bytes"] = capture.releaseDiscardedBytes;
     doc["max_release_us"] = capture.maxReleaseUs;
-    JsonArray observations = doc["wire_observations"].to<JsonArray>();
-    unsigned diagnosticRows = 0;
-    bool diagnosticTruncated = false;
-    for (const auto &observation : capture.wire) {
-      if (!observation.txBytes && !observation.rxBytes) continue;
-      // Ordinary two-byte poll echo adds no information beyond the totals.
-      if (!observation.rxBytes && observation.txLength == 2 &&
-          observation.tx[0] == 0x7e && observation.tx[1] == observation.physicalId) continue;
-      // Bound temporary JSON memory on the ESP8285 while WiFi is running.
-      if (diagnosticRows++ >= 8) { diagnosticTruncated = true; continue; }
-      JsonObject row = observations.add<JsonObject>();
-      row["physical_id"] = observation.physicalId;
-      row["tx_phase_bytes"] = observation.txBytes;
-      row["reply_phase_bytes"] = observation.rxBytes;
-      row["first_reply_read_us"] = observation.firstRxUs;
-      JsonArray tx = row["last_tx_bytes"].to<JsonArray>();
-      for (unsigned i=0; i<observation.txLength; ++i) tx.add(observation.tx[i]);
-      JsonArray rx = row["last_reply_bytes"].to<JsonArray>();
-      for (unsigned i=0; i<observation.rxLength; ++i) rx.add(observation.rx[i]);
+    if (raw) {
+      JsonArray observations = doc["wire_observations"].to<JsonArray>();
+      unsigned diagnosticRows = 0;
+      bool diagnosticTruncated = false;
+      for (const auto &observation : capture.wire) {
+        if (!observation.txBytes && !observation.rxBytes) continue;
+        // Ordinary two-byte poll echo adds no information beyond the totals.
+        if (!observation.rxBytes && observation.txLength == 2 &&
+            observation.tx[0] == 0x7e && observation.tx[1] == observation.physicalId) continue;
+        // Bound temporary JSON memory on the ESP8285 while WiFi is running.
+        if (diagnosticRows++ >= 8) { diagnosticTruncated = true; continue; }
+        JsonObject row = observations.add<JsonObject>();
+        row["physical_id"] = observation.physicalId;
+        row["tx_phase_bytes"] = observation.txBytes;
+        row["reply_phase_bytes"] = observation.rxBytes;
+        row["first_reply_read_us"] = observation.firstRxUs;
+        JsonArray tx = row["last_tx_bytes"].to<JsonArray>();
+        for (unsigned i=0; i<observation.txLength; ++i) tx.add(observation.tx[i]);
+        JsonArray rx = row["last_reply_bytes"].to<JsonArray>();
+        for (unsigned i=0; i<observation.rxLength; ++i) rx.add(observation.rx[i]);
+      }
+      doc["wire_observations_truncated"] = diagnosticTruncated;
     }
-    doc["wire_observations_truncated"] = diagnosticTruncated;
     JsonArray entries = doc["readings"].to<JsonArray>();
     for (unsigned i=0; i<capture.used; ++i) {
       const auto &entry = capture.entries[i];
@@ -1264,19 +1270,27 @@ static void startServices()
       row["min_raw_value"] = entry.minRawValue;
       row["max_raw_value"] = entry.maxRawValue;
     }
-    JsonArray recent = doc["recent_samples"].to<JsonArray>();
-    const unsigned start = capture.recentUsed == 16 ? capture.recentNext : 0;
-    for (unsigned i=0; i<capture.recentUsed; ++i) {
-      const auto &entry = capture.recent[(start + i) % 16];
-      JsonObject row = recent.add<JsonObject>();
-      row["physical_id"] = entry.sample.physicalId;
-      row["application_id"] = entry.sample.appId;
-      row["raw_value"] = entry.sample.value;
-      row["updated_ms"] = entry.updatedMs;
+    if (raw) {
+      JsonArray recent = doc["recent_samples"].to<JsonArray>();
+      const unsigned start = capture.recentUsed == 16 ? capture.recentNext : 0;
+      for (unsigned i=0; i<capture.recentUsed; ++i) {
+        const auto &entry = capture.recent[(start + i) % 16];
+        JsonObject row = recent.add<JsonObject>();
+        row["physical_id"] = entry.sample.physicalId;
+        row["application_id"] = entry.sample.appId;
+        row["raw_value"] = entry.sample.value;
+        row["updated_ms"] = entry.updatedMs;
+      }
     }
-    String body;
-    serializeJson(doc, body);
-    request->send(200, "application/json", body);
+    if (response->overflowed()) {
+      delete response;
+      request->send(503, "application/json", "{\"error\":\"diagnostic_memory\"}");
+      return;
+    }
+    // Stream from the response-owned JSON document instead of allocating a
+    // second full String copy while WiFi/TCP and live polling need memory.
+    response->setLength();
+    request->send(response);
   });
 #endif
   server.on("/access", WebUpdateAccessPoint);

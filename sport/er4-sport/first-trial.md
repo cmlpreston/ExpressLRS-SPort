@@ -197,3 +197,13 @@ TX immediately and latches `upload_paused` until reboot, including failed or
 cancelled updates. Serial update and failure states also inhibit polling.
 The user explicitly authorized the connected-S.Port bench upload trial on
 2026-10-18; this does not establish reset waveforms or general hardware safety.
+
+## Diagnostic version 6: compact live status
+
+Live polling in version 5 booted and served configuration, but the full status
+returned an empty HTTP 200 body on the bench. Version 6 defaults to counters,
+latest readings and raw ranges, and streams its response-owned JSON document
+without a second full String allocation. Add `?raw=1` for bounded wire traces
+and the 16-sample history. `free_heap` reports available heap while constructing
+the response, and JSON allocation overflow returns HTTP 503 instead of silently
+sending an incomplete status. This revision retains the live-polling/upload latch.
