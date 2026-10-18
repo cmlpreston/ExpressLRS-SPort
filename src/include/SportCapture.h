@@ -4,6 +4,11 @@ namespace onboard {
 struct CapturedSample {
     SportSample sample{};
     uint32_t updatedMs = 0, count = 0;
+    uint32_t minRawValue = 0, maxRawValue = 0;
+};
+struct RecentSportSample {
+    SportSample sample{};
+    uint32_t updatedMs = 0;
 };
 // Retain the last nonempty byte observation for each polled physical ID.
 // These are UART observations, not decoded sensor data; TX includes local echo.
@@ -43,14 +48,23 @@ public:
     }
     void accept(SportSample s, uint32_t now) {
         ++samples;
+        recent[recentNext] = {s, now};
+        recentNext = (recentNext + 1) % 16;
+        if (recentUsed < 16) ++recentUsed;
         for (unsigned i=0; i<used; ++i) {
             if (entries[i].sample.physicalId == s.physicalId && entries[i].sample.appId == s.appId) {
-                entries[i].sample = s; entries[i].updatedMs = now; ++entries[i].count; return;
+                auto &entry = entries[i];
+                entry.sample = s; entry.updatedMs = now; ++entry.count;
+                if (s.value < entry.minRawValue) entry.minRawValue = s.value;
+                if (s.value > entry.maxRawValue) entry.maxRawValue = s.value;
+                return;
             }
         }
         if (used == 32) { ++droppedKeys; return; }
-        entries[used++] = {s, now, 1};
+        entries[used++] = {s, now, 1, s.value, s.value};
     }
+    RecentSportSample recent[16]{};
+    uint8_t recentUsed = 0, recentNext = 0;
     SportWireObservation wire[32]{};
     uint32_t rxBytes = 0, txPhaseBytes = 0, replyPhaseBytes = 0, ignoredPrefixZeros = 0;
     uint32_t releaseDiscardedBytes = 0, maxReleaseUs = 0;

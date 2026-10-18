@@ -167,3 +167,16 @@ options from an older firmware discriminator are not reused. Embedded local
 WiFi defaults therefore let the receiver rejoin home WiFi when auto-WiFi starts
 after each upload. The router still assigns its IP; this does not reserve a
 fixed address. These defaults do not enable concurrent S.Port capture and WiFi.
+
+## Diagnostic capture version 4: sample history
+
+`readings` stores the latest sample per physical/application ID, not all values
+received. Version 4 adds `min_raw_value` and `max_raw_value` for each key, plus
+`recent_samples`: the last 16 checksum-valid samples in chronological order.
+History storage is bounded, retains timestamps, and survives entry to WiFi.
+Use this to distinguish a constant payload from alternating cell-pair packets
+whose earlier values the latest-only view overwrote. No polling, UART timing,
+or voltage-decoding behaviour changes in this revision.
+
+The standard cell layout was checked against OpenTX's implementation:
+https://github.com/opentx/opentx/blob/2.3/radio/src/telemetry/frsky_sport.cpp#L138-L147

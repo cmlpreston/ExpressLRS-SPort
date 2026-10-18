@@ -81,6 +81,8 @@ int main() {
         assert(er4SportCapture.entries[1].sample.physicalId==0xa1);
         assert(er4SportCapture.entries[1].sample.appId==0x0300);
         assert(er4SportCapture.entries[1].sample.value==4);
+        assert(er4SportCapture.entries[1].minRawValue==4 && er4SportCapture.entries[1].maxRawValue==4);
+        assert(er4SportCapture.recentUsed==2 && er4SportCapture.recent[1].sample.appId==0x0300);
         // WiFi entry releases even a poll in flight and retains discovery data.
         clockUs=24000;adapter.sendQueuedData(32);assert(modes[1]==FUNCTION_0);
         connectionState=wifiUpdate;adapter.sendQueuedData(32);
@@ -93,6 +95,13 @@ int main() {
     assert(capture.used==32 && capture.droppedKeys==1 && capture.samples==33);
     capture.accept({0,0x0400,123},20);
     assert(capture.used==32 && capture.entries[0].count==2 && capture.entries[0].sample.value==123);
+    assert(capture.entries[0].minRawValue==0 && capture.entries[0].maxRawValue==123);
+    assert(capture.recentUsed==16);
+    assert(capture.recent[capture.recentNext].sample.value==18);
+    assert(capture.recent[(capture.recentNext+15)%16].sample.value==123);
+    capture.accept({0,0x0400,1},30);
+    assert(capture.entries[0].minRawValue==0 && capture.entries[0].maxRawValue==123);
+    assert(capture.entries[0].sample.value==1 && capture.entries[0].count==3);
     // Traces are bounded and retain the last nonempty observation over empty polls.
     capture.beginPoll(0xa1, 0xfffffff0);
     for (unsigned i=0; i<40; ++i) capture.observeByte(uint8_t(i), false, false, 20);

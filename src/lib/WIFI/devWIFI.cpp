@@ -1205,7 +1205,7 @@ static void startServices()
   server.on("/sport/status", HTTP_GET, [](AsyncWebServerRequest *request) {
     JsonDocument doc;
     doc["firmware"] = "ER4 S.Port trial / ELRS 4.1.0";
-    doc["diagnostics_version"] = 3;
+    doc["diagnostics_version"] = 4;
     doc["capture_only_by_default"] = true;
     doc["driver_active"] = er4SportCapture.active;
     doc["polls"] = er4SportCapture.polls;
@@ -1248,6 +1248,18 @@ static void startServices()
       row["raw_value"] = entry.sample.value;
       row["updated_ms"] = entry.updatedMs;
       row["count"] = entry.count;
+      row["min_raw_value"] = entry.minRawValue;
+      row["max_raw_value"] = entry.maxRawValue;
+    }
+    JsonArray recent = doc["recent_samples"].to<JsonArray>();
+    const unsigned start = er4SportCapture.recentUsed == 16 ? er4SportCapture.recentNext : 0;
+    for (unsigned i=0; i<er4SportCapture.recentUsed; ++i) {
+      const auto &entry = er4SportCapture.recent[(start + i) % 16];
+      JsonObject row = recent.add<JsonObject>();
+      row["physical_id"] = entry.sample.physicalId;
+      row["application_id"] = entry.sample.appId;
+      row["raw_value"] = entry.sample.value;
+      row["updated_ms"] = entry.updatedMs;
     }
     String body;
     serializeJson(doc, body);
