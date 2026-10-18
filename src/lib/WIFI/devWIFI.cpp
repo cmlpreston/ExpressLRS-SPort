@@ -6,6 +6,9 @@
 #include <ArduinoJson.h>
 #if defined(ER4_SPORT_TRIAL) && defined(TARGET_RX)
 #include "SportCapture.h"
+#include "Er4SportSources.h"
+extern uint32_t er4SportCellsQueued;
+bool er4SportCellSnapshot(uint32_t now, uint16_t (&cells)[4], uint16_t &total, uint16_t &minimum);
 extern onboard::SportCapture er4SportCapture;
 extern bool er4SportUploadInProgress;
 void er4SportBeginUpload();
@@ -1223,11 +1226,13 @@ static void startServices()
     static onboard::SportCapture snapshot;
     snapshot = er4SportCapture;
     const auto &capture = snapshot;
+    uint16_t cells[4], total, minimum;
+    const bool cellsValid = er4SportCellSnapshot(millis(), cells, total, minimum);
     auto *response = new AsyncJsonResponse();
     JsonVariant &doc = response->getRoot();
     const bool raw = request->hasArg("raw") && request->arg("raw") == "1";
     doc["firmware"] = "ER4 S.Port trial / ELRS 4.1.0";
-    doc["diagnostics_version"] = 8;
+    doc["diagnostics_version"] = 9;
     doc["mode"] = er4SportSniffMode ? "sniff" : "poll";
     doc["observed_polls"] = er4SportObservedPolls;
     doc["raw_included"] = raw;
@@ -1236,7 +1241,19 @@ static void startServices()
     doc["live_wifi_capture"] = true;
     doc["upload_paused"] = er4SportUploadInProgress;
     doc["uptime_ms"] = millis();
-    doc["capture_only_by_default"] = true;
+    doc["capture_only_by_default"] = !er4SportCellsSelected;
+    doc["cell_forwarding_enabled"] = er4SportCellsSelected;
+    doc["cell_physical_id"] = SPORT_CELLS_PHYSICAL_ID;
+    doc["cell_application_id"] = SPORT_CELLS_APP_ID;
+    doc["rf_forwarding_active"] = capture.active && !er4SportSniffMode && connectionState == connected;
+    doc["crsf_cells_queued"] = er4SportCellsQueued;
+    doc["cells_valid"] = cellsValid;
+    if (cellsValid) {
+      JsonArray voltages = doc["cells_mv"].to<JsonArray>();
+      for (auto value : cells) voltages.add(value);
+      doc["pack_mv"] = total;
+      doc["minimum_cell_mv"] = minimum;
+    }
     doc["driver_active"] = capture.active;
     doc["polls"] = capture.polls;
     doc["samples"] = capture.samples;

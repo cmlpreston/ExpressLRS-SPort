@@ -55,4 +55,4 @@ def run(env, targets):
     print('  base: ExpressLRS 4.1.0 / ' + BASE_COMMIT[:8])
     print('  environment: ' + UPLOAD_ENV)
     print('  receiver: RadioMaster ER4 / ESP8285; no display')
-    print('  mode: source discovery only by default; verify output mapping before wiring\n')
+    print('  mode: verified 4S cells selected; verify output mapping before wiring\n')

@@ -128,6 +128,36 @@ int main() {
     n=telemetry.nextFrame(3100,out,19); assert(n==13); validate(out,n);
     assert(out[2]==0x0e && out[3]==0 && out[4]==0x0e && out[5]==0xd8 && out[10]==0x10 && out[11]==0x04);
     assert(!telemetry.nextFrame(6101,out,19));
+    // Actual FLVS ADV captures include both escaped 0x7d and escaped 0x7e.
+    // Replay through the S.Port parser, encoder and the transmitter parser.
+    SportTelemetry captured({{0xa1,0x0300},{0xff,0xffff},0xff,0xff});
+    SportParser wireParser;
+    auto replay=[&](uint8_t id, uint16_t app, uint32_t raw, uint32_t now) {
+        std::vector<uint8_t> wire={0x7e,id};
+        auto body=reply(app,raw);wire.insert(wire.end(),body.begin(),body.end());
+        for(auto b:wire) if(wireParser.feed(b,now,sample)) captured.accept(sample,now);
+    };
+    replay(0x22,0x0300,0x7d77ca40,7000); // Wrong sensor cannot fill a scan.
+    replay(0xa1,0x0300,0x7e07d342,7000);
+    assert(!captured.nextFrame(7000,out,19));
+    replay(0xa1,0x0301,0x7d77ca40,7000); // Wrong app instance also ignored.
+    assert(!captured.nextFrame(7000,out,19));
+    replay(0xa1,0x0300,0x7d77ca40,7000);
+    assert(!captured.nextFrame(7000,out,19));
+    replay(0xa1,0x0300,0x7e07d342,7001);
+    n=captured.nextFrame(7001,out,19);assert(n==13);validate(out,n);
+    clockMs=7001;for(size_t i=0;i<n;++i) tx.feed(out[i]);
+    assert(tx.state().vehicleCellsValid && tx.state().vehiclePackMv==16040);
+    assert(tx.state().vehicleCellsMv[0]==3988 && tx.state().vehicleCellsMv[1]==4014);
+    assert(tx.state().vehicleCellsMv[2]==4006 && tx.state().vehicleCellsMv[3]==4032);
+    assert(tx.state().vehicleMinimumCellMv==3988 && !tx.state().receiverVoltageValid);
+    assert(wireParser.checksumErrors()==0 && tx.state().crcErrors==0);
+    replay(0xa1,0x0300,0x7d77ca40,7201); // Incomplete next scan cannot emit a mixed pack.
+    assert(!captured.nextFrame(7201,out,19));
+    replay(0xa1,0x0300,0x7e07d442,7202);
+    assert(captured.nextFrame(7202,out,19)==13);
+    assert(!captured.nextFrame(10203,out,19));
+    clockMs=10002;tx.updateFreshness();assert(!tx.state().vehicleCellsValid);
     // GPS requires every field fresh; use fixed values to check endian/scales.
     telemetry.accept({0xa1,0x0800,600000},6200); // latitude 1 degree
     telemetry.accept({0xa1,0x0800,0xc0000000u|1200000},6200); // longitude -2

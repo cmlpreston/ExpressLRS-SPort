@@ -1,12 +1,12 @@
 # ER4 S.Port bench firmware — ExpressLRS 4.1.0
 
 Prepared for the spare RadioMaster ER4 (ESP8285), two bench servos and a 2S
-LiFe receiver pack. **No firmware has been flashed, settings changed or cable
-connected.** This is an experimental discovery build, not vehicle-ready firmware.
+LiFe receiver pack. This is experimental bench firmware, not vehicle-ready firmware.
+The ER4 has completed active-poll and passive-X4R comparison trials.
 
 For the next stage see [the flash/configuration/wiring procedure](first-trial.md).
 The dedicated WiFi environment runs receiver-local preflight; build-only
-environments refuse uploads. No upload was performed.
+environments refuse uploads. Uploads require explicit authorization for the receiver.
 
 ## Prepared behaviour
 
@@ -23,12 +23,20 @@ environments refuse uploads. No upload was performed.
 - Records up to 32 distinct physical/application-ID pairs with raw values,
   timestamps, counts, poll count and checksum errors. The read-only WiFi endpoint
   `/sport/status` exposes that current-boot capture.
-- On entering WiFi/update/failure mode it releases TX and stops sampling/polling;
-  captures remain available for inspection. WiFi mode stops the RC radio link.
-- Sensor selection is unconfigured in this first build, so **no sensor readings
-  are forwarded over RF yet**. The trial establishes actual source IDs first.
-  Explicit source selection then enables existing fresh GPS/temperature/cell
-  encoders without inventing readings or conflating drive pack with receiver voltage.
+- WiFi mode continues live polling/capture but stops the RC radio link. Upload
+  start immediately releases TX and latches polling off until reboot.
+- The ER4 environments select the verified FLVS ADV source: physical ID `0xa1`,
+  application ID `0x0300`, exactly four cells. Complete fresh scans are encoded
+  as CRSF `0x0e`, source 0, four big-endian millivolt readings, at most 5 Hz.
+  Frames enter the upstream telemetry router only while RF is connected. No
+  drive-pack `0x08` frame replaces the receiver's own supply-voltage telemetry.
+  GPS and temperature remain unselected pending their separate verification.
+- `/sport/status` version 9 reports `cell_forwarding_enabled`, selected IDs,
+  `cells_valid`, `cells_mv`, `pack_mv`, `minimum_cell_mv`, `crsf_cells_queued`
+  and `rf_forwarding_active`. Queue count is not an RF delivery acknowledgement.
+  Partial scans and readings older than 3 seconds are not presented as valid.
+- Passive `/sport/sniff` remains receive-only for that boot. Reboot restores
+  ER4 polling. The X4R signal must be disconnected before ER4 polling resumes.
 - Retains upstream servo control, binding and RF/failsafe machinery. The serial
   adapter emits no RC channel frames. Firmware rejects S.Port activation if the
   receiver pin layout is not ER4 or outputs 2/3 are still owned by PWM.
@@ -82,7 +90,7 @@ turnaround remain bench checks. The first trial uses servos only, no propulsion.
 ## First trial's observable result
 
 No binding is needed to collect sensor replies: normal disconnected operation
-polls until WiFi entry. After a later authorized upload and configuration,
+polls both before and during WiFi. After an authorized upload and configuration,
 let it collect with sensors connected, then enter receiver WiFi using the normal
 ELRS workflow. If no RF link is established the upstream default auto-WiFi is
 60 seconds. Open `/sport/status` on the receiver's normal WebUI address.
@@ -90,10 +98,10 @@ ELRS workflow. If no RF link is established the upstream default auto-WiFi is
 Inspect `polls`, `samples`, `checksum_errors`, `dropped_keys`, and `readings`.
 IDs/raw values are decimal in JSON. Zero samples does not establish a software
 bug: check the selected protocol/output modes, waveform, signal cable and supply.
-The captured IDs allow us to explicitly select the cell and temperature app IDs
-and GPS physical ID/instance for the next build. Do not use guessed factory IDs.
+The cell source is now selected from captures. Other sources require separate
+verification before enabling them. Do not use guessed factory IDs.
 The snapshot is RAM-only and disappears after a power cycle. `driver_active`
-will normally be false when inspecting it in WiFi, since polling has stopped.
+remains true in WiFi while the driver is collecting; RF forwarding is inactive.
 
 Build-time selectors for subsequent builds:
 `SPORT_CELLS_PHYSICAL_ID`, `SPORT_CELLS_APP_ID`,
@@ -112,3 +120,16 @@ new changes. A build does not establish electrical or radio timing compatibility
 The build-only environment rejects uploads. The receiver-local WiFi preflight
 requires the reviewed fork branch and a clean checkout; it does not modify
 existing receiver settings. See [first trial](first-trial.md).
+
+## Four-cell forwarding validation (2026-10-18)
+
+Both X4R sniffing and ER4 polling observed `0x7d77ca40` and `0x7e07d342`
+from `0xa1/0x0300`: 3988/4014/4006/4032 mV, total 16040 mV, minimum 3988 mV.
+These payloads contain escaped bytes and are now regression fixtures through
+S.Port parsing, cell assembly, CRSF encoding and the matching transmitter parser.
+The transmitter parser changes in the separate transmitter checkout are tested
+but have not been flashed. No transmitter UI cell display is added by this build.
+On-air reception remains a separate bench check after leaving WiFi mode.
+
+The CRSF voltage-group format follows the
+[TBS specification](https://github.com/tbs-fpv/tbs-crsf-spec/blob/main/crsf.md#0x0e-voltages-or-voltage-group).

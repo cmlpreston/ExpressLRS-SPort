@@ -110,6 +110,43 @@ int main() {
         assert(modes[1]==INPUT && !er4SportCapture.active && uart.tx.size()==sent);
     }
     assert(modes[1]==INPUT && er4SportCapture.samples==3);
+    // Selected 4S cells are decoded in WiFi, but queue only with an RF link.
+    connectionState=wifiUpdate;er4SportCapture.reset();uart.rx.clear();
+    {
+        SerialSportER4 adapter(uart,uart);
+        const auto before=crsfRouter.frames.size();
+        for(unsigned poll=0;poll<=33;++poll) {
+            clockUs=100000+poll*12000;adapter.sendQueuedData(32);
+            clockUs+=400;adapter.sendQueuedData(32);
+            clockUs+=180;adapter.sendQueuedData(32);
+            if(poll!=1 && poll!=33) continue;
+            std::vector<uint8_t> body=poll==1 ?
+                std::vector<uint8_t>{0x10,0,3,0x40,0xca,0x77,0x7d} :
+                std::vector<uint8_t>{0x10,0,3,0x42,0xd3,7,0x7e};
+            unsigned sum=0;for(auto b:body){sum+=b;sum=(sum&255)+(sum>>8);}
+            body.push_back(uint8_t(255-sum));
+            for(auto b:body) {
+                if(b==0x7d || b==0x7e){uart.rx.push_back(0x7d);uart.rx.push_back(b^0x20);}
+                else uart.rx.push_back(b);
+            }
+            clockUs+=420;adapter.processSerialInput();adapter.sendQueuedData(32);
+            assert(crsfRouter.frames.size()==before && er4SportCellsQueued==0);
+            uint16_t cells[4],total,minimum;
+            bool valid=er4SportCellSnapshot(millis(),cells,total,minimum);
+            assert(valid==(poll==33));
+            if(valid) assert(cells[0]==3988 && cells[1]==4014 && cells[2]==4006 && cells[3]==4032 && total==16040 && minimum==3988);
+        }
+        connectionState=connected;adapter.sendQueuedData(32);
+        assert(crsfRouter.frames.size()==before+1 && er4SportCellsQueued==1);
+        assert(crsfRouter.frames.back()[2]==0x0e && crsfRouter.frames.back()[3]==0);
+        clockUs+=199000;adapter.sendQueuedData(32);assert(er4SportCellsQueued==1);
+        clockUs+=1000;adapter.sendQueuedData(32);assert(er4SportCellsQueued==2);
+        clockUs+=3001000;adapter.sendQueuedData(32);assert(er4SportCellsQueued==2);
+        uint16_t cells[4],total,minimum;
+        assert(!er4SportCellSnapshot(millis(),cells,total,minimum));
+        er4SportBeginUpload();adapter.sendQueuedData(32);assert(er4SportCellsQueued==2);
+    }
+    er4SportUploadInProgress=false;
     connectionState=wifiUpdate;
     {
         SerialSportER4 adapter(uart,uart);

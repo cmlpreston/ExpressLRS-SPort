@@ -3,29 +3,18 @@
 #include "CRSFRouter.h"
 #include "common.h"
 #include "esp8266_peri.h"
-#ifndef SPORT_CELLS_PHYSICAL_ID
-#define SPORT_CELLS_PHYSICAL_ID 0xff
-#endif
-#ifndef SPORT_CELLS_APP_ID
-#define SPORT_CELLS_APP_ID 0xffff
-#endif
-#ifndef SPORT_TEMP_PHYSICAL_ID
-#define SPORT_TEMP_PHYSICAL_ID 0xff
-#endif
-#ifndef SPORT_TEMP_APP_ID
-#define SPORT_TEMP_APP_ID 0xffff
-#endif
-#ifndef SPORT_GPS_PHYSICAL_ID
-#define SPORT_GPS_PHYSICAL_ID 0xff
-#endif
-#ifndef SPORT_GPS_INSTANCE
-#define SPORT_GPS_INSTANCE 0xff
-#endif
+#include "Er4SportSources.h"
 onboard::SportCapture er4SportCapture;
 bool er4SportUploadInProgress = false;
 bool er4SportSniffMode = false;
 uint32_t er4SportObservedPolls = 0;
 static SerialSportER4 *er4SportAdapter = nullptr;
+uint32_t er4SportCellsQueued = 0;
+bool er4SportCellSnapshot(uint32_t now, uint16_t (&cells)[4], uint16_t &total, uint16_t &minimum) {
+    if (!er4SportAdapter || !er4SportAdapter->sensors().pack(now, total, minimum)) return false;
+    for (unsigned i=0; i<4; ++i) cells[i] = er4SportAdapter->sensors().cellsMv[i].value;
+    return true;
+}
 bool er4SportEnableSniffer() {
     if (!er4SportAdapter || er4SportUploadInProgress) return false;
     er4SportAdapter->enableSniffer();
@@ -122,7 +111,10 @@ void SerialSportER4::sendQueuedData(uint32_t maxBytesToSend) {
     if (connectionState != connected) return;
     alignas(4) uint8_t frame[19];
     const size_t length = telemetry_.nextFrame(millis(), frame, sizeof(frame));
-    if (length) crsfRouter.deliverMessageTo(CRSF_ADDRESS_RADIO_TRANSMITTER,
-        reinterpret_cast<crsf_header_t *>(frame));
+    if (length) {
+        crsfRouter.deliverMessageTo(CRSF_ADDRESS_RADIO_TRANSMITTER,
+            reinterpret_cast<crsf_header_t *>(frame));
+        if (frame[2] == 0x0e) ++er4SportCellsQueued; // Enqueued, not an RF delivery acknowledgement.
+    }
 }
 #endif

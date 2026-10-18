@@ -15,6 +15,11 @@ struct CrsfTelemetryState {
     int16_t temperatureDeciC = 0;
     uint8_t satellites = 0;
     uint32_t gpsUpdatedMs = 0, temperatureUpdatedMs = 0, rpmUpdatedMs = 0;
+    // Selected vehicle battery, source 0, exactly four cells. Independent of RX supply.
+    bool vehicleCellsValid = false;
+    uint16_t vehicleCellsMv[4] = {};
+    uint16_t vehiclePackMv = 0, vehicleMinimumCellMv = 0;
+    uint32_t vehicleCellsUpdatedMs = 0;
     bool linkValid = false;
     int16_t uplinkRssiDbm = 0; // Normalised signed dBm, e.g. -31
     uint8_t uplinkLinkQuality = 0;

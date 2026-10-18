@@ -27,6 +27,7 @@ class SportTelemetry {
 public:
     explicit SportTelemetry(VehicleSensorSelection selection) : sensors_(selection) {}
     void accept(const SportSample &sample, uint32_t nowMs) { sensors_.accept(sample, nowMs); }
+    const VehicleSensors &sensors() const { return sensors_; }
     // CRSF frame without battery 0x08: cells cannot replace RX supply telemetry.
     size_t nextFrame(uint32_t nowMs, uint8_t *out, size_t capacity);
 private:
