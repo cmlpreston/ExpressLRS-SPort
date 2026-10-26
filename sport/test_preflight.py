@@ -5,13 +5,23 @@ checks = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'src/python/sp
 class Tests(unittest.TestCase):
     def test_target(self):
         checks['validate_target'](checks['UPLOAD_ENV'],'esp8285','radiomaster.rx_2400.er4',['upload'])
+        checks['validate_target']('ER6G_ESP32_2400_RX_SPORT_via_WIFI','esp32dev','radiomaster.rx_2400.er6g',['upload'])
         for env,board,profile,targets in [
+            ('ER6G_ESP32_2400_RX_SPORT_via_WIFI','esp8285','radiomaster.rx_2400.er6g',['upload']),
+            ('ER6G_ESP32_2400_RX_SPORT_via_WIFI','esp32dev','radiomaster.rx_2400.er4',['upload']),
             ('ER6G_ESP32_2400_RX_SPORT_BUILD','esp32dev','radiomaster.rx_2400.er6g',['upload']),
             (checks['UPLOAD_ENV'],'esp32dev','radiomaster.rx_2400.er4',['upload']),
             (checks['UPLOAD_ENV'],'esp8285','radiomaster.rx_2400.er6g',['upload']),
             (checks['UPLOAD_ENV'],'esp8285','radiomaster.rx_2400.er4',['uploadforce']),
             (checks['UPLOAD_ENV'],'esp8285','radiomaster.rx_2400.er4',['uploadfs'])]:
             with self.assertRaises(ValueError):checks['validate_target'](env,board,profile,targets)
+    def test_er6g_device(self):
+        settings={'product_name':'RadioMaster ER6-G 2.4GHz Diversity+6xPWM RX', 'target':'UNIFIED_ESP32_2400_RX', 'radio-type':'SX128X', 'reg_domain_high':'ISM2G4'}
+        cfg={'pwm':[{'pin':p} for p in [14,1,3,15,2,4]]}
+        checks['validate_er6g_device'](settings,cfg)
+        for field in settings:
+            with self.assertRaises(ValueError):checks['validate_er6g_device']({**settings,field:'wrong'},cfg)
+        with self.assertRaises(ValueError):checks['validate_er6g_device'](settings,{'pwm':[]})
     def test_version_file(self):
         # This is the actual upstream 4.1.0 VERSION content in a Git checkout.
         upstream = 'commit $Format:%h$\n'

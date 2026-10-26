@@ -378,6 +378,30 @@ void test_prioritised_settings_entry_messages(void)
     TEST_ASSERT_EQUAL(CRSF_FRAMETYPE_BATTERY_SENSOR, payload[CRSF_TELEMETRY_TYPE_INDEX]);
 }
 
+// Canonical OTA queue must not replace receiver supply with a FAS ID-1 frame.
+void test_battery_ids_remain_independent(void)
+{
+    uint8_t rx[]={0xea,10,CRSF_FRAMETYPE_BATTERY_SENSOR,0,66,0,0,0,0,0,0,0};
+    uint8_t fas[]={0xea,11,CRSF_FRAMETYPE_BATTERY_SENSOR,0,160,0,123,0,0,0,0,1,0};
+    connector.forwardMessage((crsf_header_t*)rx);
+    connector.forwardMessage((crsf_header_t*)fas);
+    rx[4]=67;connector.forwardMessage((crsf_header_t*)rx);
+    fas[6]=124;connector.forwardMessage((crsf_header_t*)fas);
+    uint8_t size, payload[64];
+    TEST_ASSERT_TRUE(connector.GetNextPayload(&size,payload));
+    TEST_ASSERT_EQUAL(12,size);TEST_ASSERT_EQUAL(67,payload[4]);
+    TEST_ASSERT_TRUE(connector.GetNextPayload(&size,payload));
+    TEST_ASSERT_EQUAL(13,size);TEST_ASSERT_EQUAL(1,payload[11]);TEST_ASSERT_EQUAL(124,payload[6]);
+    TEST_ASSERT_FALSE(connector.GetNextPayload(&size,payload));
+    // Explicit ID 0 and legacy eight-byte payload are the same supply source.
+    uint8_t explicitRx[]={0xea,11,CRSF_FRAMETYPE_BATTERY_SENSOR,0,68,0,0,0,0,0,0,0,0};
+    connector.forwardMessage((crsf_header_t*)rx);
+    connector.forwardMessage((crsf_header_t*)explicitRx);
+    TEST_ASSERT_TRUE(connector.GetNextPayload(&size,payload));
+    TEST_ASSERT_EQUAL(13,size);TEST_ASSERT_EQUAL(68,payload[4]);
+    TEST_ASSERT_FALSE(connector.GetNextPayload(&size,payload));
+}
+
 // Unity setup/teardown
 void setUp()
 {
@@ -401,6 +425,7 @@ int main(int argc, char **argv)
     RUN_TEST(test_function_uart_in);
     RUN_TEST(test_function_bootloader_called);
     RUN_TEST(test_function_battery);
+    RUN_TEST(test_battery_ids_remain_independent);
     RUN_TEST(test_function_replace_old);
     RUN_TEST(test_function_do_not_replace_old_locked);
     RUN_TEST(test_function_add_type);

@@ -9,6 +9,7 @@
 extern onboard::SportCapture er4SportCapture;
 extern bool er4SportUploadInProgress;
 extern uint32_t er4SportCellsQueued;
+void er4SportFasSnapshot(onboard::Reading<uint32_t> &voltage, onboard::Reading<uint32_t> &current, onboard::Reading<int32_t> &temperature);
 bool er4SportCellSnapshot(uint32_t now, uint16_t (&cells)[4], uint16_t &total, uint16_t &minimum);
 void er4SportBeginUpload();
 extern bool er4SportSniffMode;

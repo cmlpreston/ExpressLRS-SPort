@@ -30,6 +30,16 @@ static action_e sourceId(const crsf_header_t *newMessage, const TelemetryFifo &p
     return ACTION_NEXT;
 }
 
+// Battery ID is an optional ninth payload byte, defaulting to 0. Preserve
+// receiver-supply ID 0 and FAS ID 1 independently when coalescing queued data.
+static action_e batteryId(const crsf_header_t *message, const TelemetryFifo &payloads, uint16_t pos)
+{
+    const auto *bytes = reinterpret_cast<const uint8_t *>(message);
+    const uint8_t incoming = message->frame_size >= 11 ? bytes[11] : 0;
+    const uint8_t queued = payloads[pos+1] >= 11 ? payloads[pos+11] : 0;
+    return incoming == queued ? ACTION_OVERWRITE : ACTION_NEXT;
+}
+
 // Comparator for Ardupilot Status Text message
 static action_e statusText(const crsf_header_t *newMessage, const TelemetryFifo &payloads, const uint16_t queuePosition)
 {
@@ -52,6 +62,7 @@ static action_e extendedSameDestOrigin(const crsf_header_t *newMessage, const Te
 }
 
 static std::unordered_map<crsf_frame_type_e, comparator_t> comparators = {
+    {CRSF_FRAMETYPE_BATTERY_SENSOR, batteryId},
     {CRSF_FRAMETYPE_RPM, sourceId},
     {CRSF_FRAMETYPE_TEMP, sourceId},
     {CRSF_FRAMETYPE_CELLS, sourceId},

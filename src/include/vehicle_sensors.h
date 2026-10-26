@@ -23,18 +23,24 @@ struct VehicleSensorSelection {
 
 class VehicleSensors {
 public:
-    explicit VehicleSensors(VehicleSensorSelection selection) : selection_(selection) {}
+    explicit VehicleSensors(VehicleSensorSelection selection,
+        SensorKey voltage = {0xff,0xffff}, SensorKey current = {0xff,0xffff})
+        : selection_(selection), voltageKey_(voltage), currentKey_(current) {}
     void accept(const SportSample &sample, uint32_t nowMs);
     // Returns false unless all four cells belong to a complete, fresh scan.
     bool pack(uint32_t nowMs, uint16_t &totalMv, uint16_t &minimumMv) const;
     Reading<uint16_t> cellsMv[4];
     Reading<int32_t> motorTemperatureC;
+    // Standard S.Port scales; preserve zero and out-of-sensor-range current
+    // for bench comparison. Wire validity is not calibration verification.
+    Reading<uint32_t> fasVoltageCentiV, fasCurrentDeciA;
     Reading<int32_t> latitudeE7, longitudeE7;
     Reading<uint32_t> speedDeciKmh;
     Reading<int32_t> altitudeCm;
     Reading<uint16_t> headingCentiDegrees;
 private:
     VehicleSensorSelection selection_;
+    SensorKey voltageKey_, currentKey_;
     uint8_t cellMask_ = 0;
 };
 

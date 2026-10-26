@@ -30,7 +30,7 @@ environments refuse uploads. Uploads require explicit authorization for the rece
   as CRSF `0x0e`, source 0, four big-endian millivolt readings, at most 5 Hz.
   Frames enter the upstream telemetry router only while RF is connected. No
   drive-pack `0x08` frame replaces the receiver's own supply-voltage telemetry.
-  GPS and temperature remain unselected pending their separate verification.
+  GPS remains unselected. FAS300 ADV temperature/current/voltage forwarding is enabled for bench comparison (see below).
 - `/sport/status` version 9 reports `cell_forwarding_enabled`, selected IDs,
   `cells_valid`, `cells_mv`, `pack_mv`, `minimum_cell_mv`, `crsf_cells_queued`
   and `rf_forwarding_active`. Queue count is not an RF delivery acknowledgement.
@@ -133,3 +133,40 @@ On-air reception remains a separate bench check after leaving WiFi mode.
 
 The CRSF voltage-group format follows the
 [TBS specification](https://github.com/tbs-fpv/tbs-crsf-spec/blob/main/crsf.md#0x0e-voltages-or-voltage-group).
+
+## FAS300 ADV forwarding (2026-10-26)
+
+Both trial profiles select captured physical ID `0x22`: current `0x0200`,
+voltage `0x0210`, and temperature `0x0400`. Other physical/application IDs are
+ignored. Each receiver-side reading expires independently after 3 seconds; zero is retained.
+At the transmitter voltage/current expire after 3 seconds, while the existing
+Temperature card retains its 10-second freshness policy.
+
+- Temperature: standard CRSF `0x0d`, source 0, tenths of a degree C.
+- Current: standard CRSF battery `0x08` with explicit battery ID 1, tenths of an
+  amp. ID 0 remains receiver supply; the OTA queue preserves both IDs. Capacity
+  and remaining are unavailable and zero-filled; the R-1 does not display them.
+  Current forwarding does not depend on a voltage reading. If voltage is absent,
+  that frame's required voltage field is zero; R-1 ignores it for FAS voltage.
+- Voltage: CRSF general-voltage group `0x0e`, source 128, one millivolt value.
+  S.Port hundredths of a volt are multiplied by 10 without losing precision.
+
+Captured current `11559` is deliberately forwarded (standard interpretation:
+1155.9 A), despite exceeding the FAS300's 300 A range. The R-1 marks it **Check
+range** so it can be compared against the FrSky display; it must not be assumed
+calibrated. Capture `0x0210=0` remains a visible zero, and `0x0400=24` becomes
+24.0 C. Warm the probe by hand to check temperature forwarding without a motor.
+Voltage requires the sensor's voltage-sense connection; current requires its
+measurement path to be wired and checked. Do not infer these from the S.Port
+power connection alone.
+
+Matching R-1 firmware adds **Data → Sensors → FAS300 ADV 3 / 3**, FAS voltage
+and current widget sources, and `@FAS` output from the USB `TELEMETRY` command.
+The existing Temperature sensor displays the selected FAS probe. ER4 WiFi
+`/sport/status` version 10 reports raw hundredths-of-volt/tenths-of-amp values
+and freshness. ER6G uses the transmitter diagnostics.
+
+References: [OpenTX S.Port scales](https://github.com/opentx/opentx/blob/2.3/radio/src/telemetry/frsky_sport.cpp),
+[TBS CRSF format](https://github.com/tbs-fpv/tbs-crsf-spec/blob/main/crsf.md).
+These source changes and build outputs do not establish that receiver or
+transmitter hardware has been updated; record an authorized upload separately.

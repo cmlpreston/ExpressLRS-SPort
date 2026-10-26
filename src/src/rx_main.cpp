@@ -24,6 +24,9 @@
 #include "rx-serial/SerialHoTT_TLM.h"
 #include "rx-serial/SerialSportER4.h"
 #include "rx-serial/SerialSport.h"
+#if defined(ER6G_SPORT_TRIAL)
+#include "Er6gSportProfile.h"
+#endif
 #include "rx-serial/SerialMavlink.h"
 #include "rx-serial/SerialTramp.h"
 #include "rx-serial/SerialSmartAudio.h"
@@ -1491,6 +1494,13 @@ static void setupSerial1()
             serial1IO = new SerialSUMD(SERIAL1_PROTOCOL_TX, SERIAL1_PROTOCOL_RX);
             break;
         case PROTOCOL_SERIAL1_SPORT:
+#if defined(ER6G_SPORT_TRIAL)
+            if (!er6gSportPinAllowed(GPIO_PIN_PWM_OUTPUTS, GPIO_PIN_PWM_OUTPUTS_COUNT,
+                                    serial1TXpin, serial1RXpin) || firmwareOptions.is_airport) {
+                serial1IO = new SerialNOOP(); // Never steal a PWM pin or run on another target.
+                break;
+            }
+#endif
             if (serial1TXpin != UNDEF_PIN) {
                 Serial1.begin(57600, SERIAL_8N1, serial1TXpin, serial1TXpin, false);
                 serial1IO = new SerialSport(SERIAL1_PROTOCOL_TX, SERIAL1_PROTOCOL_RX, serial1TXpin);

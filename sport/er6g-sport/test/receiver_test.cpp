@@ -23,7 +23,7 @@ static void feed(SportBus &bus, const std::vector<uint8_t> &wire, uint32_t ms) {
     for (auto byte:wire) bus.feed(byte,ms);
 }
 static void validate(const uint8_t *frame, size_t n) {
-    assert(n==size_t(frame[1])+2 && frame[0]==0xea && frame[2]!=0x08);
+    assert(n==size_t(frame[1])+2 && frame[0]==0xea && (frame[2]!=0x08 || (frame[1]==11 && frame[11]==1)));
     // Independent polynomial division rather than the encoder's bit loop.
     unsigned remainder=0;
     for (size_t i=2;i<n;++i) {
@@ -178,5 +178,36 @@ int main() {
     assert(!timer.nextFrame(50,out,19));
     assert(timer.nextFrame(72,out,19)==7);
     assert(!timer.nextFrame(3000,out,19));
+    // FAS300 ADV captured IDs and raw values, including zero VFAS and the
+    // suspicious current value: forward it losslessly for bench comparison.
+    SportTelemetry fas({{0xff,0xffff},{0x22,0x0400},0xff,0xff},{0x22,0x0210},{0x22,0x0200});
+    fas.accept({0x23,0x0200,11559},11000);
+    fas.accept({0x22,0x0201,11559},11000);
+    assert(!fas.nextFrame(11000,out,19));
+    fas.accept({0x22,0x0400,24},11000);
+    fas.accept({0x22,0x0210,0},11000);
+    fas.accept({0x22,0x0200,11559},11000);
+    n=fas.nextFrame(11000,out,19);validate(out,n);assert(n==7 && out[2]==0x0d);
+    clockMs=11000;for(size_t i=0;i<n;++i)tx.feed(out[i]);
+    assert(tx.state().temperatureValid && tx.state().temperatureDeciC==240);
+    n=fas.nextFrame(11200,out,19);validate(out,n);assert(n==13 && out[2]==0x08 && out[11]==1);
+    clockMs=11200;for(size_t i=0;i<n;++i)tx.feed(out[i]);
+    assert(tx.state().fasCurrentValid && tx.state().fasCurrentDeciA==11559);
+    assert(!tx.state().receiverVoltageValid);
+    n=fas.nextFrame(11400,out,19);validate(out,n);assert(n==7 && out[2]==0x0e && out[3]==128);
+    clockMs=11400;for(size_t i=0;i<n;++i)tx.feed(out[i]);
+    assert(tx.state().fasVoltageValid && tx.state().fasVoltageMv==0);
+    assert(!fas.nextFrame(14001,out,19)); // Every reading must be fresh.
+    fas.accept({0x22,0x0210,1604},15000);fas.accept({0x22,0x0200,123},15000);
+    n=fas.nextFrame(15000,out,19);assert(n==13 && out[3]==0 && out[4]==160 && out[5]==0 && out[6]==123);
+    n=fas.nextFrame(15200,out,19);assert(n==7 && out[4]==0x3e && out[5]==0xa8); // exactly 16040mV
+    fas.accept({0x22,0x0200,70000},15300); // Never truncate an oversized current.
+    n=fas.nextFrame(15400,out,19);assert(n==7 && out[2]==0x0e);
+    fas.accept({0x22,0x0210,6001},15500);assert(!fas.nextFrame(15600,out,19));
+    fas.accept({0x22,0x0200,123},15700);
+    n=fas.nextFrame(15800,out,19);assert(n==13 && out[2]==0x08 && out[3]==0 && out[4]==0); // current survives unavailable voltage
+    // Freshness survives millis rollover independently for FAS channels.
+    fas.accept({0x22,0x0210,0},0xfffffff0u);fas.accept({0x22,0x0200,0},0xfffffff0u);
+    assert(fas.sensors().fasVoltageCentiV.fresh(50) && fas.sensors().fasCurrentDeciA.fresh(50));
     puts("ER6G S.Port polling, encoding, freshness, rollover and transmitter tests passed");
 }

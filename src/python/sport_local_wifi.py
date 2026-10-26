@@ -1,10 +1,11 @@
-"""Private WiFi defaults for ER4 trial firmware, never compiler flags."""
+"""Private WiFi defaults for selected receiver trial firmware, never compiler flags."""
 import json
 import os
 from pathlib import Path
 import stat
 
-ENVS = {'ER4_ESP8285_2400_RX_SPORT_BUILD', 'ER4_ESP8285_2400_RX_SPORT_via_WIFI'}
+ENVS = {'ER4_ESP8285_2400_RX_SPORT_BUILD', 'ER4_ESP8285_2400_RX_SPORT_via_WIFI',
+        'ER6G_ESP32_2400_RX_SPORT_BUILD', 'ER6G_ESP32_2400_RX_SPORT_via_WIFI'}
 FILENAME = 'sport-wifi.local.json'
 
 def load_local_wifi(project, environment):

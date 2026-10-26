@@ -10,14 +10,17 @@ checkout. `compatibility/jr-r1` is a documented, test-only parser snapshot.
 
 | Receiver | Implementation | Current status |
 | --- | --- | --- |
-| ER4 / ESP8285 | Primary UART0 TX GPIO1, RX GPIO3, software-controlled TX release | Discovery firmware and guarded WiFi upload workflow prepared; not flashed |
-| ER6G / ESP32 | Serial2 single-pin UART1, inverted GPIO routing | Build-tested; upload disabled pending hardware review |
+| ER4 / ESP8285 | Primary UART0 TX GPIO1, RX GPIO3, software-controlled TX release | Bench captures verified FLVS ADV; selected 4S forwarding enabled; on-air delivery check pending |
+| ER6G / ESP32 | Secondary serial / UART1, one-wire output 6 GPIO4 | Three-servo plus S.Port trial profile; guarded WiFi upload available after live model/pin checks |
 
 Both drivers reuse the same S.Port parser, poller and selected sensor decoder.
-GPS/temperature/4S cell encoders suppress stale readings. Receiver voltage is
-kept separate; no drive-pack battery 0x08 frame is emitted. Source selection is
-unconfigured by default. ER4 exposes discovered raw IDs/values via `/sport/status`
-in WiFi after collection. No sensor telemetry is forwarded by default.
+GPS/temperature/4S cell and FAS voltage/current encoders suppress stale readings. Receiver voltage is
+kept separate as battery ID 0; FAS current uses explicit battery ID 1. Both trial environments
+select the verified FLVS ADV source (`0xa1` / `0x0300`) for four-cell forwarding.
+GPS remains unselected. FAS300 ADV temperature, voltage and current are selected from the captured `0x22` source. ER4 exposes discovered raw IDs/values
+and forwarding diagnostics via `/sport/status`; ER6G does not yet expose that
+ER4-specific endpoint. See [the ER6-G mapping](er6g-sport/README.md) for three
+servo signals plus one shared S.Port signal.
 
 ## Build and test
 
@@ -47,7 +50,7 @@ no separate copy of driver implementation is maintained.
 ## Upload policy
 
 Only ordinary `upload` in `ER4_ESP8285_2400_RX_SPORT_via_WIFI` is enabled.
-All build-only, ER6G, forced and other upload targets are rejected by
+All build-only, forced and other unreviewed upload targets are rejected by
 `src/python/sport_no_upload.py`. The receiver-local preflight checks profile,
 4.1.0 ancestry, refreshed origin experiment branch, clean checkout and host tests.
 It uses no transmitter repository, absolute workspace paths or separate source

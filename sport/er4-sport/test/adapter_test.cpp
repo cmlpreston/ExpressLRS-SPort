@@ -183,6 +183,28 @@ int main() {
         assert(er4SportCapture.samples==1 && uart.tx.size()==sent && modes[1]==INPUT);
     }
     assert(!er4SportEnableSniffer());
+    er4SportUploadInProgress=false;er4SportSniffMode=false;connectionState=connected;
+    crsfRouter.frames.clear();er4SportCellsQueued=0;
+    {
+        Stream fasUart;SerialSportER4 adapter(fasUart,fasUart);
+        for(unsigned poll=0;poll<=34;++poll){
+            clockUs=5000000+poll*12000;fakeUartStatus=0;adapter.sendQueuedData(32);
+            clockUs+=400;adapter.sendQueuedData(32);clockUs+=180;adapter.sendQueuedData(32);
+            if(poll!=2 && poll!=34)continue;
+            const uint32_t value=poll==2?11559:0;const uint16_t app=poll==2?0x0200:0x0210;
+            std::vector<uint8_t> body={0x10,uint8_t(app),uint8_t(app>>8),uint8_t(value),uint8_t(value>>8),uint8_t(value>>16),uint8_t(value>>24)};
+            unsigned sum=0;for(auto b:body){sum+=b;sum=(sum&255)+(sum>>8);}body.push_back(uint8_t(255-sum));
+            for(auto b:body){if(b==0x7d || b==0x7e){fasUart.rx.push_back(0x7d);fasUart.rx.push_back(b^0x20);}else fasUart.rx.push_back(b);}
+            clockUs+=420;adapter.processSerialInput();adapter.sendQueuedData(32);
+        }
+        clockUs+=200000;adapter.sendQueuedData(32);
+        bool haveCurrent=false,haveVoltage=false;
+        for(const auto &f:crsfRouter.frames){
+            if(f[2]==0x08){assert(f.size()==13 && f[11]==1 && f[5]==0x2d && f[6]==0x27);haveCurrent=true;}
+            if(f[2]==0x0e && f[3]==128){assert(f.size()==7 && f[4]==0 && f[5]==0);haveVoltage=true;}
+        }
+        assert(haveCurrent && haveVoltage && er4SportCellsQueued==0);
+    }
     onboard::SportCapture capture;
     for(unsigned i=0;i<33;++i)capture.accept({uint8_t(i),0x0400,i},10);
     assert(capture.used==32 && capture.droppedKeys==1 && capture.samples==33);

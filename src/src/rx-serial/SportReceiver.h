@@ -25,10 +25,12 @@ private:
 
 class SportTelemetry {
 public:
-    explicit SportTelemetry(VehicleSensorSelection selection) : sensors_(selection) {}
+    explicit SportTelemetry(VehicleSensorSelection selection,
+        SensorKey voltage = {0xff,0xffff}, SensorKey current = {0xff,0xffff})
+        : sensors_(selection, voltage, current) {}
     void accept(const SportSample &sample, uint32_t nowMs) { sensors_.accept(sample, nowMs); }
     const VehicleSensors &sensors() const { return sensors_; }
-    // CRSF frame without battery 0x08: cells cannot replace RX supply telemetry.
+    // Cells use 0x0e source 0; FAS battery 0x08 uses explicit ID 1, never RX supply ID 0.
     size_t nextFrame(uint32_t nowMs, uint8_t *out, size_t capacity);
 private:
     VehicleSensors sensors_;

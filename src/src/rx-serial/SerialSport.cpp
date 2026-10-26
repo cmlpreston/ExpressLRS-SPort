@@ -4,30 +4,13 @@
 #include "common.h"
 #include "hal/uart_ll.h"
 #include "soc/uart_struct.h"
-// Unselected by default. Override only with IDs confirmed in a bus capture.
-#ifndef SPORT_CELLS_PHYSICAL_ID
-#define SPORT_CELLS_PHYSICAL_ID 0xff
-#endif
-#ifndef SPORT_CELLS_APP_ID
-#define SPORT_CELLS_APP_ID 0xffff
-#endif
-#ifndef SPORT_TEMP_PHYSICAL_ID
-#define SPORT_TEMP_PHYSICAL_ID 0xff
-#endif
-#ifndef SPORT_TEMP_APP_ID
-#define SPORT_TEMP_APP_ID 0xffff
-#endif
-#ifndef SPORT_GPS_PHYSICAL_ID
-#define SPORT_GPS_PHYSICAL_ID 0xff
-#endif
-#ifndef SPORT_GPS_INSTANCE
-#define SPORT_GPS_INSTANCE 0xff
-#endif
+#include "SportSources.h"
 SerialSport::SerialSport(Stream &out, Stream &in, int8_t pin)
     : SerialIO(&out, &in), input_(in), pin_(pin), telemetry_({
         {SPORT_CELLS_PHYSICAL_ID, SPORT_CELLS_APP_ID},
         {SPORT_TEMP_PHYSICAL_ID, SPORT_TEMP_APP_ID},
-        SPORT_GPS_PHYSICAL_ID, SPORT_GPS_INSTANCE}) { receiveMode(); }
+        SPORT_GPS_PHYSICAL_ID, SPORT_GPS_INSTANCE},
+        {SPORT_FAS_PHYSICAL_ID,0x0210}, {SPORT_FAS_PHYSICAL_ID,0x0200}) { receiveMode(); }
 void SerialSport::receiveMode() {
     if (pin_ == UNDEF_PIN) return;
     pinMatrixOutDetach(pin_, false, false);
@@ -36,6 +19,7 @@ void SerialSport::receiveMode() {
 }
 SerialSport::~SerialSport() { receiveMode(); }
 void SerialSport::processBytes(uint8_t *bytes, uint16_t size) {
+    if (connectionState >= MODE_STATES) return;
     for (uint16_t i=0; i<size; ++i) {
         bus_.feed(bytes[i], millis());
         onboard::SportSample sample;
@@ -44,6 +28,7 @@ void SerialSport::processBytes(uint8_t *bytes, uint16_t size) {
 }
 void SerialSport::sendQueuedData(uint32_t maxBytesToSend) {
     if (pin_ == UNDEF_PIN) return;
+    if (connectionState >= MODE_STATES) { receiveMode(); return; }
     // Only UART1/Serial2 is supported. Inspect the hardware FSM, never flush or wait.
     const auto action = bus_.tick(micros(), uart_ll_is_tx_idle(&UART1));
     if (action == onboard::SportBus::Action::Poll) {

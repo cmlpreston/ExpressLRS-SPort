@@ -146,7 +146,10 @@ json_flags.update(load_local_wifi(env.subst('$PROJECT_DIR'), env.subst('$PIOENV'
 version_to_env()
 build_flags.append("-DLATEST_COMMIT=" + get_git_sha())
 build_flags.append("-DLATEST_VERSION=" + get_version())
-build_flags.append("-DTARGET_NAME=" + re.sub("_VIA_.*", "", target_name))
+wire_target = re.sub("_VIA_.*", "", target_name)
+if wire_target == "ER6G_ESP32_2400_RX_SPORT":
+    wire_target = "UNIFIED_ESP32_2400_RX"
+build_flags.append("-DTARGET_NAME=" + wire_target)
 condense_flags()
 
 if '-DRADIO_SX127X=1' in build_flags or '-DRADIO_LR1121=1' in build_flags:

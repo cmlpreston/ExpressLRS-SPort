@@ -7,6 +7,8 @@
 #if defined(ER4_SPORT_TRIAL) && defined(TARGET_RX)
 #include "SportCapture.h"
 #include "Er4SportSources.h"
+#include "vehicle_sensors.h"
+void er4SportFasSnapshot(onboard::Reading<uint32_t> &, onboard::Reading<uint32_t> &, onboard::Reading<int32_t> &);
 extern uint32_t er4SportCellsQueued;
 bool er4SportCellSnapshot(uint32_t now, uint16_t (&cells)[4], uint16_t &total, uint16_t &minimum);
 extern onboard::SportCapture er4SportCapture;
@@ -1226,13 +1228,17 @@ static void startServices()
     static onboard::SportCapture snapshot;
     snapshot = er4SportCapture;
     const auto &capture = snapshot;
+    onboard::Reading<uint32_t> fasVoltage, fasCurrent;
+    onboard::Reading<int32_t> fasTemperature;
+    er4SportFasSnapshot(fasVoltage, fasCurrent, fasTemperature);
+    const uint32_t fasNow = millis();
     uint16_t cells[4], total, minimum;
     const bool cellsValid = er4SportCellSnapshot(millis(), cells, total, minimum);
     auto *response = new AsyncJsonResponse();
     JsonVariant &doc = response->getRoot();
     const bool raw = request->hasArg("raw") && request->arg("raw") == "1";
     doc["firmware"] = "ER4 S.Port trial / ELRS 4.1.0";
-    doc["diagnostics_version"] = 9;
+    doc["diagnostics_version"] = 10;
     doc["mode"] = er4SportSniffMode ? "sniff" : "poll";
     doc["observed_polls"] = er4SportObservedPolls;
     doc["raw_included"] = raw;
@@ -1243,6 +1249,17 @@ static void startServices()
     doc["uptime_ms"] = millis();
     doc["capture_only_by_default"] = !er4SportCellsSelected;
     doc["cell_forwarding_enabled"] = er4SportCellsSelected;
+    doc["fas_forwarding_enabled"] = SPORT_FAS_PHYSICAL_ID != 0xff;
+    doc["fas_physical_id"] = SPORT_FAS_PHYSICAL_ID;
+    doc["fas_voltage_valid"] = fasVoltage.fresh(fasNow);
+    doc["fas_current_valid"] = fasCurrent.fresh(fasNow);
+    doc["fas_temperature_valid"] = fasTemperature.fresh(fasNow);
+    if (fasVoltage.fresh(fasNow)) doc["fas_voltage_raw_cv"] = fasVoltage.value;
+    if (fasCurrent.fresh(fasNow)) {
+      doc["fas_current_raw_da"] = fasCurrent.value;
+      doc["fas_current_within_300a"] = fasCurrent.value <= 3000;
+    }
+    if (fasTemperature.fresh(fasNow)) doc["fas_temperature_c"] = fasTemperature.value;
     doc["cell_physical_id"] = SPORT_CELLS_PHYSICAL_ID;
     doc["cell_application_id"] = SPORT_CELLS_APP_ID;
     doc["rf_forwarding_active"] = capture.active && !er4SportSniffMode && connectionState == connected;

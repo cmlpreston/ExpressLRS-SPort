@@ -17,6 +17,8 @@ class Tests(unittest.TestCase):
             p.write_text(json.dumps(valid))
             p.chmod(0o600)
             self.assertEqual(load(directory, env), valid)
+            self.assertEqual(load(directory, 'ER6G_ESP32_2400_RX_SPORT_via_WIFI'), valid)
+            self.assertEqual(load(directory, 'ER6G_ESP32_2400_RX_SPORT_BUILD'), valid)
             self.assertEqual(load(directory, 'Unified_ESP32_2400_TX_via_WIFI'), {})
             for invalid in [[], {'wifi-ssid': 'x'}, {**valid, 'uid': [1]},
                             {**valid, 'wifi-ssid': ''}, {**valid, 'wifi-ssid': 'x'*33},

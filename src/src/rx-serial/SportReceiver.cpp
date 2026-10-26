@@ -50,9 +50,9 @@ bool SportBus::takeSample(SportSample &sample)
 size_t SportTelemetry::nextFrame(uint32_t now, uint8_t *out, size_t capacity)
 {
     if (!out || capacity < 19 || (sent_ && uint32_t(now - sentMs_) < 200)) return 0;
-    for (unsigned attempt = 0; attempt < 3; ++attempt) {
+    for (unsigned attempt = 0; attempt < 5; ++attempt) {
         const uint8_t kind = next_;
-        next_ = (next_ + 1) % 3;
+        next_ = (next_ + 1) % 5;
         size_t payload = 0;
         if (kind == 0 && sensors_.latitudeE7.fresh(now) && sensors_.longitudeE7.fresh(now) &&
             sensors_.speedDeciKmh.fresh(now) && sensors_.headingCentiDegrees.fresh(now) && sensors_.altitudeCm.fresh(now)) {
@@ -73,6 +73,15 @@ size_t SportTelemetry::nextFrame(uint32_t now, uint8_t *out, size_t capacity)
             if (!sensors_.pack(now, total, minimum)) continue;
             out[2] = 0x0e; payload = 9; out[3] = 0;
             for (unsigned i=0;i<4;++i) be16(out+4+i*2, sensors_.cellsMv[i].value);
+        } else if (kind == 3 && sensors_.fasCurrentDeciA.fresh(now)) {
+            out[2] = 0x08; payload = 9;
+            be16(out+3, uint16_t(sensors_.fasVoltageCentiV.fresh(now) ? (sensors_.fasVoltageCentiV.value + 5) / 10 : 0));
+            be16(out+5, uint16_t(sensors_.fasCurrentDeciA.value));
+            out[7]=out[8]=out[9]=out[10]=0; // Capacity/remaining unavailable, not measured.
+            out[11]=1; // Explicit battery ID; the receiver's own supply remains ID 0.
+        } else if (kind == 4 && sensors_.fasVoltageCentiV.fresh(now)) {
+            out[2] = 0x0e; payload = 3; out[3] = 128; // general voltage group, not cells
+            be16(out+4, uint16_t(sensors_.fasVoltageCentiV.value * 10));
         } else continue;
         out[0] = 0xea; out[1] = uint8_t(payload + 2);
         uint8_t crc = 0;

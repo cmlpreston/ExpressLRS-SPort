@@ -10,6 +10,16 @@ int32_t signedValue(uint32_t raw)
 
 void VehicleSensors::accept(const SportSample &s, uint32_t nowMs)
 {
+    if (voltageKey_.matches(s) && s.appId == 0x0210) {
+        fasVoltageCentiV.valid = s.value <= 6000; // FAS300 ADV: 0..60 V
+        if (fasVoltageCentiV.valid) fasVoltageCentiV.set(s.value, nowMs);
+        return;
+    }
+    if (currentKey_.matches(s) && s.appId == 0x0200) {
+        fasCurrentDeciA.valid = s.value <= 65535; // lossless CRSF uint16, no truncation
+        if (fasCurrentDeciA.valid) fasCurrentDeciA.set(s.value, nowMs);
+        return;
+    }
     if (selection_.cells.matches(s) && (s.appId & 0xfff0) == 0x0300) {
         const uint8_t count = (s.value >> 4) & 15;
         const uint8_t index = s.value & 15;

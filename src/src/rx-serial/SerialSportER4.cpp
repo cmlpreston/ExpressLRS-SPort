@@ -15,6 +15,12 @@ bool er4SportCellSnapshot(uint32_t now, uint16_t (&cells)[4], uint16_t &total, u
     for (unsigned i=0; i<4; ++i) cells[i] = er4SportAdapter->sensors().cellsMv[i].value;
     return true;
 }
+void er4SportFasSnapshot(onboard::Reading<uint32_t> &voltage, onboard::Reading<uint32_t> &current, onboard::Reading<int32_t> &temperature) {
+    if (!er4SportAdapter) { voltage={}; current={}; temperature={}; return; }
+    voltage=er4SportAdapter->sensors().fasVoltageCentiV;
+    current=er4SportAdapter->sensors().fasCurrentDeciA;
+    temperature=er4SportAdapter->sensors().motorTemperatureC;
+}
 bool er4SportEnableSniffer() {
     if (!er4SportAdapter || er4SportUploadInProgress) return false;
     er4SportAdapter->enableSniffer();
@@ -37,7 +43,8 @@ SerialSportER4::SerialSportER4(Stream &out, Stream &in)
     : SerialIO(&out, &in), input_(in), telemetry_({
         {SPORT_CELLS_PHYSICAL_ID, SPORT_CELLS_APP_ID},
         {SPORT_TEMP_PHYSICAL_ID, SPORT_TEMP_APP_ID},
-        SPORT_GPS_PHYSICAL_ID, SPORT_GPS_INSTANCE}) { receiveMode(); er4SportAdapter = this; er4SportCapture.active = pollingAllowed(); }
+        SPORT_GPS_PHYSICAL_ID, SPORT_GPS_INSTANCE},
+        {SPORT_FAS_PHYSICAL_ID,0x0210}, {SPORT_FAS_PHYSICAL_ID,0x0200}) { receiveMode(); er4SportAdapter = this; er4SportCapture.active = pollingAllowed(); }
 void SerialSportER4::receiveMode() {
     pinMode(1, INPUT); // Remove UART0 TX from GPIO1; no GPIO drive/pull-up.
     pinMode(3, FUNCTION_0); // UART0 RX, clear Arduino's ordinary RX pull-up.
@@ -114,7 +121,7 @@ void SerialSportER4::sendQueuedData(uint32_t maxBytesToSend) {
     if (length) {
         crsfRouter.deliverMessageTo(CRSF_ADDRESS_RADIO_TRANSMITTER,
             reinterpret_cast<crsf_header_t *>(frame));
-        if (frame[2] == 0x0e) ++er4SportCellsQueued; // Enqueued, not an RF delivery acknowledgement.
+        if (frame[2] == 0x0e && frame[3] == 0) ++er4SportCellsQueued; // Enqueued, not an RF delivery acknowledgement.
     }
 }
 #endif
