@@ -15,9 +15,9 @@ bool idle=true;
 int mode=-1, rxPin=-1, txPin=-1;
 bool rxInverted=false,txInverted=false;
 bool uart_ll_is_tx_idle(uart_dev_t*){return idle;}
-void pinMode(uint8_t pin,uint8_t value){assert(pin==4);mode=value;}
-void digitalWrite(uint8_t pin,uint8_t value){assert(pin==4&&value==LOW);}
-void pinMatrixOutDetach(uint8_t pin,bool,bool){assert(pin==4);txPin=-1;}
+void pinMode(uint8_t pin,uint8_t value){assert(pin==2);mode=value;}
+void digitalWrite(uint8_t pin,uint8_t value){assert(pin==2&&value==LOW);}
+void pinMatrixOutDetach(uint8_t pin,bool,bool){assert(pin==2);txPin=-1;}
 void pinMatrixInAttach(uint8_t pin,int signal,bool invert){assert(signal==U1RXD_IN_IDX);rxPin=pin;rxInverted=invert;}
 void pinMatrixOutAttach(uint8_t pin,int signal,bool invert,bool){assert(signal==U1TXD_OUT_IDX);txPin=pin;txInverted=invert;}
 static void reply(Stream &in,uint32_t value,uint16_t app=0x0300){
@@ -27,23 +27,25 @@ static void reply(Stream &in,uint32_t value,uint16_t app=0x0300){
 }
 int main(){
     int pins[]={14,1,3,15,2,4};
-    assert(er6gSportPinAllowed(pins,6,4,-1));
-    assert(!er6gSportPinAllowed(pins,4,4,-1));
+    assert(er6gSportPinAllowed(pins,6,2,-1));
+    assert(er6gSportPinAllowed(pins,6,2,2));
+    assert(!er6gSportPinAllowed(pins,6,4,-1)); // optional CH6 is not this profile
+    assert(!er6gSportPinAllowed(pins,4,2,-1));
     assert(!er6gSportPinAllowed(pins,6,1,-1));
-    assert(!er6gSportPinAllowed(pins,6,4,3));
-    pins[0]=0;assert(!er6gSportPinAllowed(pins,6,4,-1));
+    assert(!er6gSportPinAllowed(pins,6,2,3));
+    pins[0]=0;assert(!er6gSportPinAllowed(pins,6,2,-1));
     Stream out,in;
     {
-        SerialSport driver(out,in,4);
-        assert(mode==INPUT&&rxPin==4&&rxInverted&&txPin==-1);
+        SerialSport driver(out,in,2);
+        assert(mode==INPUT&&rxPin==2&&rxInverted&&txPin==-1);
         for(unsigned poll=0;poll<=33;++poll){
             nowUs=poll*12000;idle=false;driver.sendQueuedData(32);
-            assert(mode==OUTPUT&&txPin==4&&txInverted);
+            assert(mode==OUTPUT&&txPin==2&&txInverted);
             assert(out.tx[out.tx.size()-2]==0x7e);
             nowUs+=200;driver.sendQueuedData(32);assert(mode==OUTPUT); // busy UART must retain drive
             in.rx.push_back(0x7e); // local echo drained at handover
             nowUs+=200;idle=true;driver.sendQueuedData(32);
-            assert(mode==INPUT&&txPin==-1&&rxPin==4&&rxInverted&&in.rx.empty());
+            assert(mode==INPUT&&txPin==-1&&rxPin==2&&rxInverted&&in.rx.empty());
             if(poll==1||poll==33){
                 reply(in,poll==1?0x7d77ca40:0x7e07d342);
                 driver.processSerialInput();driver.sendQueuedData(32);
@@ -59,7 +61,7 @@ int main(){
     assert(mode==INPUT&&txPin==-1);
     connectionState=connected;
     {
-        SerialSport driver(out,in,4);
+        SerialSport driver(out,in,2);
         for(unsigned poll=0;poll<=34;++poll){
             nowUs=1000000+poll*12000;idle=false;driver.sendQueuedData(32);
             nowUs+=400;idle=true;driver.sendQueuedData(32);

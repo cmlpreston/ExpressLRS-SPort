@@ -11,7 +11,7 @@ checkout. `compatibility/jr-r1` is a documented, test-only parser snapshot.
 | Receiver | Implementation | Current status |
 | --- | --- | --- |
 | ER4 / ESP8285 | Primary UART0 TX GPIO1, RX GPIO3, software-controlled TX release | Bench captures verified FLVS ADV; selected 4S forwarding enabled; on-air delivery check pending |
-| ER6G / ESP32 | Secondary serial / UART1, one-wire output 6 GPIO4 | Three-servo plus S.Port trial profile; guarded WiFi upload available after live model/pin checks |
+| ER6G / ESP32 | Secondary serial / UART1, one-wire fitted output 5 GPIO2 | Three-servo plus S.Port trial profile; guarded WiFi upload available after live model/pin checks |
 
 Both drivers reuse the same S.Port parser, poller and selected sensor decoder.
 GPS/temperature/4S cell and FAS voltage/current encoders suppress stale readings. Receiver voltage is

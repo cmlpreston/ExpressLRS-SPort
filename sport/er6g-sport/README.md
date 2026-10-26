@@ -13,27 +13,34 @@ WebUI) runs at inverted 57600 baud, 8N1. The driver releases the signal after th
 hardware reports the final stop bit has completed, then listens for the sensor.
 No external TX/RX junction or direction-control pin is needed.
 
-Recommended bench mapping (connector numbers are not RF channel numbers):
+Trial mapping (connector numbers are not RF channel numbers; preserve the existing PWM settings on outputs 1–4):
 
 | Physical output | GPIO | Mode | RF channel / purpose |
 | --- | --- | --- | --- |
 | 1 | 14 | 50Hz PWM | CH1 steering servo / gyro steering input |
-| 2 | 1 | Existing PWM / spare | Spare; UART0 boot output |
+| 2 | 1 | Existing PWM | CH2 throttle; UART0 boot output |
 | 3 | 3 | 50Hz PWM | CH3 gyro gain |
-| 4 | 15 | 50Hz PWM | CH2 throttle bench servo |
-| 5 | 2 | Existing PWM / spare | Spare; strapping pin |
-| 6 | 4 | Serial2 TX (secondary serial) | S.Port shared TX/RX signal |
+| 4 | 15 | Existing PWM | CH4 spare |
+| 5 | 2 | Serial2 TX (secondary serial) | S.Port shared TX/RX signal; strapping pin |
+| 6 (optional header) | 4 | PWM, unused | CH6; no connector needed for this trial |
+
+CH6 needs an optional soldered three-pin connector, as shown in the
+[RadioMaster manual](https://cdn.shopify.com/s/files/1/0609/8324/7079/files/ER6G_User_Manual.pdf?v=1722224113).
+This trial uses the fitted CH5 header instead. When moving from the earlier CH6
+trial, change CH5 to Serial2 TX and restore CH6 to PWM, preserving their other
+settings. GPIO2 is a boot-strapping pin: successful operation and power-up with
+the actual sensor chain remain hardware checks.
 
 The WebUI calls the secondary port **Serial2**; its C++ object is `Serial1`.
 Select **S.Port Telemetry** for the secondary serial protocol. Leave secondary
-RX unassigned: the driver routes RX internally to output 6. Leave AirPort off.
+RX unassigned: the driver routes RX internally to output 5. Leave AirPort off.
 The trial refuses S.Port activation on the wrong target, another TX output or a
 separately assigned secondary RX. Existing PWM mapping, binding and failsafe
 settings are not changed on flashing; review and configure them explicitly.
 This profile does not set new servo/failsafe defaults.
 
 ```text
-ER6-G output 6 SIGNAL -------- S.Port sensor-chain SIGNAL
+ER6-G output 5 SIGNAL -------- S.Port sensor-chain SIGNAL
 ER6-G GND ------------------- S.Port sensor-chain GND
 Compatible sensor supply ---- S.Port sensor-chain VCC
 ```
